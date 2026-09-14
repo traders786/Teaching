@@ -439,6 +439,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  const isStaticEnvironment =
+    typeof window !== 'undefined' &&
+    (window.location.hostname.includes('github.io') ||
+      window.location.protocol === 'file:' ||
+      window.location.hostname.includes('pages.dev') ||
+      !window.location.port ||
+      window.location.port === '80' ||
+      window.location.port === '443');
+
+  // On GitHub Pages or static hosts where no Node.js backend exists, immediately use fallback
+  if (isStaticEnvironment && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+    await new Promise((resolve) => setTimeout(resolve, 250)); // natural micro-delay for realistic UI feedback
+    return handleStaticClientFallback<T>(endpoint, options);
+  }
+
   try {
     const response = await fetch(endpoint, {
       ...options,
@@ -459,13 +474,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return data as T;
   } catch (err: any) {
     // If network error (e.g. offline or static host routing), use fallback
-    if (
-      typeof window !== 'undefined' &&
-      (window.location.hostname.includes('github.io') || !navigator.onLine || err.message?.includes('Failed to fetch') || err.message?.includes('405'))
-    ) {
-      return handleStaticClientFallback<T>(endpoint, options);
-    }
-    throw err;
+    return handleStaticClientFallback<T>(endpoint, options);
   }
 }
 
