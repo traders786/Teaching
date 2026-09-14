@@ -1,0 +1,6 @@
+{
+  "name": "Speak India - Communication & Confidence Platform",
+  "description": "Live online spoken English, public speaking, and confidence-building classes for students from Class 4 to Class 12.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
