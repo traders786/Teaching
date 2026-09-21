@@ -3,7 +3,7 @@ import upspeaqLogo from '../../assets/upspeaq-logo.png';
 import upspeaqLogoWhiteBg from '../../assets/upspeaq-logo-white-bg.png';
 
 interface LogoProps {
-  theme?: 'light' | 'dark' | 'white-bg'; // light: for light backgrounds, dark: for dark backgrounds, white-bg: boxed on white
+  theme?: 'light' | 'dark' | 'white-bg';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   showText?: boolean;
@@ -15,74 +15,48 @@ export const Logo: React.FC<LogoProps> = ({
   className = '',
   showText = true,
 }) => {
-  const [hasError, setHasError] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
-  const heightClasses = {
-    sm: 'h-7',
-    md: 'h-9 sm:h-10',
-    lg: 'h-12 sm:h-14',
-    xl: 'h-16 sm:h-20',
+  const isDark = theme === 'dark';
+
+  const sizeConfig = {
+    sm: { imgH: 'h-7', iconBox: 'w-7 h-7', text: 'text-lg', mic: 'w-3.5 h-3.5' },
+    md: { imgH: 'h-9 sm:h-10', iconBox: 'w-8 h-8 sm:w-9 sm:h-9', text: 'text-xl sm:text-2xl', mic: 'w-4 h-4 sm:w-4.5 sm:h-4.5' },
+    lg: { imgH: 'h-12 sm:h-14', iconBox: 'w-10 h-10 sm:w-12 sm:h-12', text: 'text-2xl sm:text-3xl', mic: 'w-5 h-5 sm:w-6 sm:h-6' },
+    xl: { imgH: 'h-16 sm:h-20', iconBox: 'w-14 h-14 sm:w-16 sm:h-16', text: 'text-3xl sm:text-4xl', mic: 'w-7 h-7 sm:w-8 sm:h-8' },
   }[size];
 
-  // If the image asset fails for any reason, render a crystal clear SVG fallback
-  if (hasError) {
-    const isDark = theme === 'dark';
+  // If image failed to load or in fallback mode, render pristine vector logo
+  if (imageFailed) {
     return (
-      <div className={`inline-flex items-center gap-2 font-heading font-black tracking-tight select-none ${className}`}>
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF6B00] to-amber-400 flex items-center justify-center text-white shadow-sm shadow-orange-500/20">
-          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+      <div className={`inline-flex items-center gap-2.5 font-heading tracking-tight select-none ${className}`}>
+        <div className={`${sizeConfig.iconBox} rounded-xl bg-gradient-to-tr from-[#FF6B00] via-orange-500 to-amber-400 flex items-center justify-center text-white shadow-md shadow-orange-500/20 shrink-0`}>
+          <svg className={`${sizeConfig.mic} fill-current`} viewBox="0 0 24 24">
             <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Zm6 7v3a6 6 0 0 1-12 0V9a1 1 0 0 0-2 0v3a8 8 0 0 0 7 7.93V22a1 1 0 0 0 2 0v-2.07A8 8 0 0 0 20 12V9a1 1 0 0 0-2 0Z" />
           </svg>
         </div>
         {showText && (
-          <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            up<span className="text-[#FF6B00]">speaq</span>
-          </span>
+          <div className="flex items-baseline">
+            <span className={`${sizeConfig.text} font-black ${isDark ? 'text-white' : 'text-slate-900'} leading-none`}>
+              up<span className="text-[#FF6B00]">speaq</span>
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B00] ml-0.5 inline-block"></span>
+          </div>
         )}
       </div>
     );
   }
 
-  if (theme === 'white-bg') {
-    return (
-      <div className={`inline-flex items-center rounded-xl bg-white p-1.5 shadow-xs ${className}`}>
-        <img
-          src={upspeaqLogoWhiteBg || upspeaqLogo}
-          alt="upspeaq logo"
-          className={`${heightClasses} w-auto object-contain`}
-          loading="eager"
-          onError={() => setHasError(true)}
-        />
-      </div>
-    );
-  }
+  const selectedSrc = theme === 'white-bg' ? (upspeaqLogoWhiteBg || upspeaqLogo) : upspeaqLogo;
 
-  if (theme === 'dark') {
-    return (
-      <div className={`inline-flex items-center gap-2.5 ${className}`}>
-        <div className="relative inline-flex items-center">
-          {/* Transparent logo with bright white text filter for dark backgrounds */}
-          <img
-            src={upspeaqLogo}
-            alt="upspeaq logo"
-            className={`${heightClasses} w-auto object-contain brightness-0 invert`}
-            loading="eager"
-            onError={() => setHasError(true)}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // Default: Transparent logo for light backgrounds (Navbar, light cards, headers)
   return (
-    <div className={`inline-flex items-center ${className}`}>
+    <div className={`inline-flex items-center select-none ${className}`}>
       <img
-        src={upspeaqLogo}
-        alt="upspeaq logo"
-        className={`${heightClasses} w-auto object-contain transition-transform group-hover:scale-[1.02]`}
+        src={selectedSrc}
+        alt="upspeaq"
+        className={`${sizeConfig.imgH} w-auto object-contain ${isDark ? 'brightness-0 invert' : ''} transition-transform group-hover:scale-[1.02]`}
         loading="eager"
-        onError={() => setHasError(true)}
+        onError={() => setImageFailed(true)}
       />
     </div>
   );
