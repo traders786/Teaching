@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { BrandingConfig } from '../../types';
-import { Menu, X, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Menu, X, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Logo } from '../ui/Logo';
 
-export type PublicPage = 'home' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq';
+export type PublicPage = 'home' | 'about' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq' | 'terms' | 'privacy';
 
 interface HeaderProps {
   branding: BrandingConfig;
@@ -10,6 +11,7 @@ interface HeaderProps {
   onNavigatePage: (page: PublicPage) => void;
   onOpenDemoModal: () => void;
   onNavigateToAdmin: () => void;
+  onNavigateToLogin: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +20,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigatePage,
   onOpenDemoModal,
   onNavigateToAdmin,
+  onNavigateToLogin,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -29,34 +32,30 @@ export const Header: React.FC<HeaderProps> = ({
 
   const navItems: { id: PublicPage; label: string }[] = [
     { id: 'home', label: 'Home' },
+    { id: 'about', label: 'About Us' },
     { id: 'curriculum', label: 'Curriculum' },
-    { id: 'batches', label: '8-Student Batches' },
     { id: 'faculty', label: 'Faculty' },
     { id: 'pricing', label: 'Program & Fees' },
-    { id: 'faq', label: 'FAQs' },
   ];
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          {/* Brand Logo - Clean, bold, without subline */}
-          <div className="flex items-center">
+          
+          {/* Brand Logo - Preserving 100% of Upspeaq Identity */}
+          <div className="flex items-center gap-3">
             <button
               onClick={() => handleNavClick('home')}
-              className="flex items-center gap-3 text-left group cursor-pointer"
+              className="flex items-center text-left group cursor-pointer"
+              aria-label="upspeaq Home"
             >
-              <div className="w-10 h-10 rounded-xl bg-slate-900 text-amber-500 flex items-center justify-center font-black text-xl tracking-tight shadow-xs group-hover:bg-slate-800 transition-colors">
-                SI
-              </div>
-              <span className="text-2xl font-black tracking-tight text-slate-900 leading-tight">
-                {branding.brandName}
-              </span>
+              <Logo theme="light" size="md" />
             </button>
           </div>
 
-          {/* Desktop Navigation - Clean, uncluttered, single-line tabs */}
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold">
+          {/* Desktop Navigation */}
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold font-heading">
             {navItems.map((item) => {
               const isActive = activePage === item.id;
               return (
@@ -78,63 +77,66 @@ export const Header: React.FC<HeaderProps> = ({
             })}
           </nav>
 
-          {/* Actions: Staff Portal + Book Free Demo */}
+          {/* Desktop Right Action Area: Login + Bhanzu-Style 3D Demo Button */}
           <div className="hidden sm:flex items-center gap-3">
             <button
-              id="header_btn_staff_portal"
+              id="header_btn_login"
               onClick={() => {
                 window.scrollTo({ top: 0, behavior: 'instant' });
-                onNavigateToAdmin();
+                onNavigateToLogin();
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer"
-              title="Staff & Admin Portal"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-800 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer"
+              title="Student & Staff Login"
             >
-              <ShieldCheck className="w-4 h-4 text-amber-700" />
-              <span>Staff Portal</span>
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
+              <span>Login / Portal</span>
             </button>
 
+            {/* Book Free Demo Button */}
             <button
               id="header_cta_book_demo"
               onClick={onOpenDemoModal}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+              className="px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 cursor-pointer shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 active:translate-y-0 font-heading"
             >
               <span>Book Free Demo</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 text-slate-950" />
             </button>
           </div>
 
           {/* Mobile Menu Trigger & Demo CTA */}
-          <div className="flex items-center gap-1.5 sm:hidden">
+          <div className="flex items-center gap-2 sm:hidden">
             <button
               onClick={() => {
                 window.scrollTo({ top: 0, behavior: 'instant' });
-                onNavigateToAdmin();
+                onNavigateToLogin();
               }}
               className="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold"
-              title="Staff & Admin Portal"
             >
-              Staff
+              Login
             </button>
+            
             <button
               onClick={onOpenDemoModal}
-              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold shadow-2xs"
+              className="px-3 py-1.5 rounded-full bg-amber-600 text-white text-xs font-bold shadow-xs"
             >
               Free Demo
             </button>
+
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-1.5 text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 cursor-pointer"
               aria-label="Toggle navigation"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
+
         </div>
       </div>
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-4 pb-6 space-y-4 text-left shadow-lg">
+        <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-4 pb-6 space-y-4 text-left shadow-lg font-heading">
           <div className="flex flex-col space-y-1 text-base font-semibold text-slate-800">
             {navItems.map((item) => (
               <button

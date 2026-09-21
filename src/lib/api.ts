@@ -11,6 +11,7 @@ import {
   Payment,
   DashboardMetrics,
   User,
+  UserRole,
 } from '../types';
 
 const TOKEN_STORAGE_KEY = 'speakindia_auth_token';
@@ -58,7 +59,7 @@ const DEFAULT_COURSES: Course[] = [
     id: 'crs_starter_monthly',
     name: '1-Month Communication & Fluency Starter',
     slug: '1-month-starter',
-    description: '1-Month intensive starter cohort for Class 4-12 students. Build fundamental English speaking fluency, eliminate stage shyness, and practice live weekly speech assignments in 8-student batches.',
+    description: '1-Month intensive starter cohort for Class 4-12 students. Build fundamental English speaking fluency, eliminate stage shyness, and practice live weekly speech assignments in intimate small-group batches.',
     duration_months: 1,
     classes_per_week: 3,
     total_classes: 12,
@@ -74,7 +75,7 @@ const DEFAULT_COURSES: Course[] = [
     id: 'crs_flagship_1',
     name: '3-Month Flagship Communication & Confidence Cohort',
     slug: 'live-communication-confidence',
-    description: 'Comprehensive 3-month interactive masterclass for Class 4-12 students. Master spoken English fluency, articulation, debate reasoning, and unshakeable stage confidence in live, 8-student batches.',
+    description: 'Comprehensive 3-month interactive masterclass for Class 4-12 students. Master spoken English fluency, articulation, debate reasoning, and unshakeable stage confidence in live, intimate small-group batches.',
     duration_months: 3,
     classes_per_week: 3,
     total_classes: 36,
@@ -122,13 +123,13 @@ const DEFAULT_TEACHERS: Teacher[] = [
   {
     id: 'tch_2',
     user_id: 'usr_teacher_2',
-    name: 'Vikramaditya Sen',
-    email: 'vikram.sen@speakindia.in',
-    phone: '+91 98222 33445',
+    name: 'Afshan Parween',
+    email: 'parweenafshan0@gmail.com',
+    phone: '+91 96089 93562',
     photo_url: null,
-    biography: 'Drama and Spoken English Specialist passionate about breaking hesitation and stage anxiety in middle school students. (Verified Faculty Profile)',
-    expertise: 'Spoken English Fluency, Overcoming Stage Fear, Storytelling, Body Language',
-    achievements: 'Conducted 100+ school confidence workshops across Delhi NCR and Bengaluru',
+    biography: 'National-Level Elocution Bronze Medallist and experienced communication trainer with a B.A. (Honours) in Economics and B.Ed practical training.',
+    expertise: 'Spoken English Fluency, Elocution, Speech Confidence, Storytelling, Critical Thinking',
+    achievements: 'Bronze Medalist in National-Level Elocution Contest (83 universities); Trained 300+ students in live speech drills',
     availability: 'Tue-Sat 3 PM - 7 PM IST',
     status: 'ACTIVE',
     created_at: '2026-09-14 12:00:00',
@@ -138,38 +139,38 @@ const DEFAULT_TEACHERS: Teacher[] = [
 const DEFAULT_BATCHES: Batch[] = [
   {
     id: 'batch_1',
-    batch_name: 'Junior Orators (Class 4 - 7) - Mon/Wed/Fri Evening',
+    batch_name: 'Junior Orators (UKG - Class 4) — Batch J04',
     course_id: 'crs_flagship_1',
     course_name: '3-Month Flagship Communication & Confidence Cohort',
-    teacher_id: 'tch_2',
-    teacher_name: 'Vikramaditya Sen',
-    start_date: '2026-10-01',
-    end_date: '2026-12-31',
+    teacher_id: 'tch_1',
+    teacher_name: 'Mrs. Ananya Sharma',
+    start_date: '2026-09-01',
+    end_date: '2026-11-30',
     schedule_days: 'Monday, Wednesday, Friday',
-    schedule_time: '5:00 PM - 6:00 PM IST',
-    meeting_link: 'https://meet.google.com/speak-india-batch1',
+    schedule_time: '5:00 PM - 5:45 PM IST',
+    meeting_link: 'https://meet.google.com/upspeaq-batch-j04',
     target_capacity: 8,
     max_capacity: 9,
-    status: 'UPCOMING',
+    status: 'ACTIVE',
     notes: 'Focus on story narration, daily conversational English, and building confidence in answering questions.',
-    enrolled_count: 1,
+    enrolled_count: 5,
     created_at: '2026-09-14 12:00:00',
   },
   {
     id: 'batch_2',
-    batch_name: 'Senior Debaters (Class 8 - 12) - Tue/Thu/Sat Evening',
+    batch_name: 'Senior Debaters (Class 5 - 10) — Batch S02',
     course_id: 'crs_flagship_1',
     course_name: '3-Month Flagship Communication & Confidence Cohort',
-    teacher_id: 'tch_1',
-    teacher_name: 'Ananya Sharma',
-    start_date: '2026-10-02',
-    end_date: '2027-01-02',
+    teacher_id: 'tch_2',
+    teacher_name: 'Afshan Parween',
+    start_date: '2026-09-02',
+    end_date: '2026-12-02',
     schedule_days: 'Tuesday, Thursday, Saturday',
-    schedule_time: '6:30 PM - 7:30 PM IST',
-    meeting_link: 'https://meet.google.com/speak-india-batch2',
+    schedule_time: '6:30 PM - 7:15 PM IST',
+    meeting_link: 'https://meet.google.com/upspeaq-batch-s02',
     target_capacity: 8,
     max_capacity: 9,
-    status: 'UPCOMING',
+    status: 'ACTIVE',
     notes: 'Focus on formal debate arguments, impromptu speaking, interview presence, and persuasive presentation.',
     enrolled_count: 0,
     created_at: '2026-09-14 12:00:00',
@@ -268,20 +269,37 @@ function setLocalData<T>(key: string, val: T): void {
 // Client-side fallback router when backend API is unavailable (static hosting like GitHub Pages)
 function handleStaticClientFallback<T>(endpoint: string, options: RequestInit = {}): T {
   const method = (options.method || 'GET').toUpperCase();
-  const body = options.body ? JSON.parse(options.body as string) : {};
+  let body: any = {};
+  try {
+    if (typeof options.body === 'string') {
+      body = JSON.parse(options.body);
+    }
+  } catch (e) {}
 
-  // 1. Auth Login / Demo Login
-  if (endpoint.includes('/api/auth/demo-login') || endpoint.includes('/api/auth/login')) {
-    const role = (body.role || 'SUPER_ADMIN').toUpperCase();
+  // 1. Auth Login / Demo Login / Google Login
+  if (endpoint.includes('/api/auth/demo-login') || endpoint.includes('/api/auth/login') || endpoint.includes('/api/auth/google')) {
+    const emailStr = (body.email || '').toLowerCase();
+    const role: UserRole = body.role
+      ? body.role.toUpperCase()
+      : emailStr.includes('admin')
+      ? 'SUPER_ADMIN'
+      : emailStr.includes('teacher') || emailStr.includes('ananya')
+      ? 'TEACHER'
+      : 'STUDENT';
+
     const user: User = {
-      id: role === 'SUPER_ADMIN' ? 'usr_admin_1' : role === 'ADMIN' ? 'usr_counselor_1' : 'usr_teacher_1',
-      email: role === 'SUPER_ADMIN' ? 'admin@speakindia.in' : role === 'ADMIN' ? 'counselor@speakindia.in' : 'teacher@speakindia.in',
-      name: role === 'SUPER_ADMIN' ? 'Head Administrator' : role === 'ADMIN' ? 'Admissions Lead' : 'Senior Speech Coach',
-      role: role as any,
+      id: role === 'SUPER_ADMIN' ? 'usr_admin_1' : role === 'TEACHER' ? 'usr_teacher_1' : 'usr_student_1',
+      email: emailStr || (role === 'SUPER_ADMIN' ? 'admin@speakindia.in' : 'student@upspeaq.com'),
+      name: role === 'SUPER_ADMIN' ? 'Head Administrator' : role === 'TEACHER' ? 'Ananya Sharma' : 'Student Champion',
+      role: role,
     };
-    const token = 'ghpages_mock_token_' + Date.now();
+    const token = 'session_token_' + Date.now();
     setStoredToken(token);
-    return { token, user } as T;
+    return {
+      token,
+      user,
+      redirectPath: role === 'SUPER_ADMIN' || role === 'ADMIN' ? '/admin/dashboard' : role === 'TEACHER' ? '/teacher/dashboard' : '/student/dashboard',
+    } as T;
   }
 
   // 2. Auth Me
@@ -406,11 +424,11 @@ function handleStaticClientFallback<T>(endpoint: string, options: RequestInit = 
   if (endpoint.includes('/api/settings')) {
     return {
       branding: {
-        brandName: 'Speak India',
+        brandName: 'upspeaq',
         tagline: 'Empowering Young Minds with Voice, Courage & Conviction',
-        contactPhone: '+91 98765 43210',
-        supportWhatsapp: '+91 98765 43210',
-        contactEmail: 'admissions@speakindia.in',
+        contactPhone: '+91 7004132088',
+        supportWhatsapp: '+91 7004132088',
+        contactEmail: 'upspeaqofficial@gmail.com',
         classBatchTargetSize: 8,
         classBatchMaxSize: 9,
         flagshipPrice: 4999,
@@ -461,8 +479,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     });
 
     if (!response.ok) {
-      // If static host returns 404/405, fallback gracefully
-      if (response.status === 404 || response.status === 405) {
+      if (isStaticEnvironment && (response.status === 404 || response.status === 405)) {
         return handleStaticClientFallback<T>(endpoint, options);
       }
       const data = await response.json().catch(() => ({}));
@@ -473,21 +490,27 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const data = await response.json().catch(() => ({}));
     return data as T;
   } catch (err: any) {
-    // If network error (e.g. offline or static host routing), use fallback
-    return handleStaticClientFallback<T>(endpoint, options);
+    if (isStaticEnvironment && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+      return handleStaticClientFallback<T>(endpoint, options);
+    }
+    throw err;
   }
 }
 
 export const api = {
   // Authentication
-  login: (email: string, password: string) =>
-    request<{ token: string; user: User }>('/api/auth/login', {
+  login: (emailOrPayload: string | { email: string; password: string; role?: string }, maybePassword?: string) => {
+    const body = typeof emailOrPayload === 'string'
+      ? { email: emailOrPayload, password: maybePassword || '' }
+      : emailOrPayload;
+    return request<{ token: string; user: User; redirectPath?: string }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+      body: JSON.stringify(body),
+    });
+  },
 
-  demoLogin: (role: 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' = 'SUPER_ADMIN') =>
-    request<{ token: string; user: User }>('/api/auth/demo-login', {
+  demoLogin: (role: UserRole = 'SUPER_ADMIN') =>
+    request<{ token: string; user: User; redirectPath?: string }>('/api/auth/demo-login', {
       method: 'POST',
       body: JSON.stringify({ role }),
     }),
@@ -499,6 +522,40 @@ export const api = {
 
   getMe: () => request<{ user: User }>('/api/auth/me'),
   getCurrentUser: () => request<{ user: User }>('/api/auth/me'),
+
+  auth: {
+    login: (emailOrPayload: string | { email: string; password: string; role?: string }, maybePassword?: string) => {
+      const body = typeof emailOrPayload === 'string'
+        ? { email: emailOrPayload, password: maybePassword || '' }
+        : emailOrPayload;
+      return request<{ token: string; user: User; redirectPath?: string }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    },
+    demoLogin: (role: UserRole = 'SUPER_ADMIN') =>
+      request<{ token: string; user: User; redirectPath?: string }>('/api/auth/demo-login', {
+        method: 'POST',
+        body: JSON.stringify({ role }),
+      }),
+    googleLogin: (credential: string) =>
+      request<{ token: string; user: User; redirectPath?: string }>('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential }),
+      }),
+    logout: () =>
+      request<{ message: string }>('/api/auth/logout', {
+        method: 'POST',
+      }),
+    getMe: () => request<{ user: User }>('/api/auth/me'),
+    getCurrentUser: () => request<{ user: User }>('/api/auth/me'),
+  },
+
+  googleLogin: (credential: string) =>
+    request<{ token: string; user: User; redirectPath?: string }>('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    }),
 
   // Public Booking
   bookDemo: (payload: {
@@ -518,13 +575,18 @@ export const api = {
     utmCampaign?: string;
     consent: boolean;
   }) =>
-    request<{ success: boolean; message: string; bookingReference: string; studentName: string }>(
-      '/api/leads/book-demo',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }
-    ),
+    request<{
+      success: boolean;
+      message: string;
+      bookingReference: string;
+      studentName: string;
+      token?: string;
+      user?: User;
+      demoDetails?: any;
+    }>('/api/leads/book-demo', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   // Leads
   getLeads: (params?: {
@@ -596,6 +658,56 @@ export const api = {
     return request<{ demos: DemoSession[] }>(`/api/demos${query}`);
   },
 
+  getMeetStatus: () =>
+    request<{ isConfigured: boolean; provider: string; workspaceDomain?: string }>('/api/demos/meet-status'),
+
+  getZoomStatus: () =>
+    request<{ isConfigured: boolean; provider: string; accountIdMasked?: string }>('/api/demos/meet-status'),
+
+  createMeetDemo: (payload: {
+    lead_id?: string;
+    student_name?: string;
+    student_class?: string;
+    parent_name?: string;
+    parent_phone?: string;
+    topic?: string;
+    title?: string;
+    date?: string;
+    startTime?: string;
+    endTime?: string;
+    teacherId?: string;
+    teacher_id?: string;
+    scheduled_at?: string;
+    notes?: string;
+    meetingLink?: string;
+  }) =>
+    request<{ success: boolean; demo: DemoSession; meet: any; zoom?: any; message: string }>('/api/demos/create-meet', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  createZoomDemo: (payload: {
+    lead_id?: string;
+    student_name?: string;
+    student_class?: string;
+    parent_name?: string;
+    parent_phone?: string;
+    topic?: string;
+    title?: string;
+    date?: string;
+    startTime?: string;
+    endTime?: string;
+    teacherId?: string;
+    teacher_id?: string;
+    scheduled_at?: string;
+    notes?: string;
+    meetingLink?: string;
+  }) =>
+    request<{ success: boolean; demo: DemoSession; zoom: any; meet?: any; message: string }>('/api/demos/create-meet', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
   createDemo: (payload: any) =>
     request<{ demo: DemoSession; message: string }>('/api/demos', {
       method: 'POST',
@@ -631,6 +743,30 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+
+  // Google Meet Settings
+  getMeetSettings: () =>
+    request<{ configured: boolean; defaultMeetingUrl: string; workspaceDomain: string; defaultRoomPrefix: string }>(
+      '/api/settings/meet'
+    ),
+
+  saveMeetSettings: (payload: { defaultMeetingUrl?: string; workspaceDomain?: string; defaultRoomPrefix?: string }) =>
+    request<{ success: boolean; message: string; configured: boolean }>('/api/settings/meet', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  getZoomSettings: () =>
+    request<{ configured: boolean; accountId: string; clientId: string; hasSecret: boolean; clientSecretMasked?: string }>(
+      '/api/settings/meet'
+    ),
+
+  saveZoomSettings: (payload: { accountId?: string; clientId?: string; clientSecret?: string }) =>
+    request<{ success: boolean; message: string; configured: boolean }>('/api/settings/meet', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
 
   // Batches
   getBatches: () => request<{ batches: Batch[] }>('/api/batches'),
@@ -699,13 +835,23 @@ export const api = {
   // Teachers
   getTeachers: () => request<{ teachers: Teacher[] }>('/api/teachers'),
 
-  createTeacher: (payload: Partial<Teacher>) =>
+  getTeacherDemoHistory: (teacherId: string) =>
+    request<{
+      teacher: Teacher;
+      demos: any[];
+      payoutRate: number;
+      totalEarned: number;
+      completedCount: number;
+      pendingCount: number;
+    }>(`/api/teachers/${teacherId}/demos`),
+
+  createTeacher: (payload: Partial<Teacher> & { googleMeetLink?: string }) =>
     request<{ teacher: Teacher; message: string }>('/api/teachers', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
-  updateTeacher: (id: string, updates: Partial<Teacher>) =>
+  updateTeacher: (id: string, updates: Partial<Teacher> & { googleMeetLink?: string }) =>
     request<{ teacher: Teacher; message: string }>(`/api/teachers/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -784,4 +930,329 @@ export const api = {
       upcomingDemos: DemoSession[];
       recentLeads: Lead[];
     }>('/api/stats/dashboard'),
+
+  // ==========================================
+  // TEACHER PORTAL APIs
+  // ==========================================
+  getTeacherDashboard: () =>
+    request<{
+      teacher: Teacher;
+      metrics: {
+        todayClassesCount: number;
+        upcomingDemosCount: number;
+        activeStudentsCount: number;
+        pendingHomeworkCount: number;
+        openTicketsCount: number;
+      };
+      todayClasses: any[];
+      upcomingDemos: any[];
+    }>('/api/teacher/dashboard'),
+
+  getTeacherProfile: () =>
+    request<{ teacher: Teacher; assignedBatches: Batch[] }>('/api/teacher/profile'),
+
+  updateTeacherProfile: (payload: Partial<Teacher>) =>
+    request<{ teacher: Teacher; message: string }>('/api/teacher/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  getTeacherDemos: () =>
+    request<{ demos: any[] }>('/api/teacher/demos'),
+
+  getAvailableTeacherDemos: () =>
+    request<{ demos: any[] }>('/api/teacher/demos/available'),
+
+  claimTeacherDemo: (demoId: string) =>
+    request<{ success: boolean; demo: any; message: string }>(`/api/teacher/demos/${demoId}/claim`, {
+      method: 'POST',
+    }),
+
+  getTeacherDemoById: (id: string) =>
+    request<{ demo: any; evaluation: any }>(`/api/teacher/demos/${id}`),
+
+  submitDemoEvaluation: (demoId: string, evaluation: any) =>
+    request<{ message: string; evaluationId: string }>(`/api/teacher/demos/${demoId}/evaluation`, {
+      method: 'POST',
+      body: JSON.stringify(evaluation),
+    }),
+
+  getTeacherBatches: () =>
+    request<{ batches: any[] }>('/api/teacher/batches'),
+
+  getTeacherBatchById: (id: string) =>
+    request<{ batch: any; students: any[]; sessions: any[] }>(`/api/teacher/batches/${id}`),
+
+  getTeacherStudentDetail: (id: string) =>
+    request<{ student: any; attendanceRecords: any[]; homeworkSubmissions: any[] }>(`/api/teacher/students/${id}`),
+
+  getTeacherSessions: () =>
+    request<{ sessions: any[] }>('/api/teacher/sessions'),
+
+  markTeacherAttendance: (sessionId: string, batchId: string, attendanceList: any[]) =>
+    request<{ message: string }>(`/api/teacher/sessions/${sessionId}/attendance`, {
+      method: 'POST',
+      body: JSON.stringify({ batch_id: batchId, attendanceList }),
+    }),
+
+  updateSessionNotes: (sessionId: string, payload: any) =>
+    request<{ message: string }>(`/api/teacher/sessions/${sessionId}/notes`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getTeacherCurriculum: () =>
+    request<{ modules: any[]; sessions: any[] }>('/api/teacher/curriculum'),
+
+  getTeacherHomework: () =>
+    request<{ homework: any[] }>('/api/teacher/homework'),
+
+  createTeacherHomework: (payload: any) =>
+    request<{ message: string; homeworkId: string }>('/api/teacher/homework', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getHomeworkSubmissions: (homeworkId: string) =>
+    request<{ homework: any; submissions: any[] }>(`/api/teacher/homework/${homeworkId}/submissions`),
+
+  submitHomeworkFeedback: (submissionId: string, payload: { score_rating: string; mentor_feedback: string; status?: string }) =>
+    request<{ message: string }>(`/api/teacher/homework/submissions/${submissionId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getTeacherRecordings: () =>
+    request<{ recordings: any[] }>('/api/teacher/recordings'),
+
+  createTeacherRecording: (payload: any) =>
+    request<{ message: string; recordingId: string }>('/api/teacher/recordings', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteTeacherRecording: (id: string) =>
+    request<{ message: string }>(`/api/teacher/recordings/${id}`, {
+      method: 'DELETE',
+    }),
+
+  updateBatchMeetingLink: (batchId: string, meetingLink: string, sessionId?: string) =>
+    request<{ message: string }>(`/api/teacher/batches/${batchId}/meeting-link`, {
+      method: 'PATCH',
+      body: JSON.stringify({ meeting_link: meetingLink, session_id: sessionId }),
+    }),
+
+  uploadTeacherPhoto: (file: File) => {
+    const formData = new FormData();
+    formData.append('photo', file);
+    return request<{ success: boolean; photo_url: string; teacher?: any; message: string }>('/api/teacher/photo', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  // ==========================================
+  // STUDENT PORTAL APIs
+  // ==========================================
+  getStudentDashboard: () =>
+    request<{
+      student: any;
+      nextClass: any;
+      upcomingDemo?: any;
+      availableCourses?: any[];
+      branding?: any;
+      homework?: any[];
+      pendingHomework?: any[];
+      latestFeedback?: any;
+      progress: {
+        totalClasses: number;
+        completedClasses: number;
+        attendedClasses: number;
+        totalHomeworkSubmitted?: number;
+        submittedHomeworkCount?: number;
+        progressPercentage?: number;
+        attendancePercentage?: number;
+      };
+      recentRecordings: any[];
+    }>('/api/student/dashboard'),
+
+  submitEnrollmentRequest: (payload: { courseId: string; courseName?: string; notes?: string; studentName?: string; parentPhone?: string }) =>
+    request<{ success: boolean; message: string }>('/api/student/enroll-request', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  directStudentEnroll: (courseId: string) =>
+    request<{ success: boolean; message: string; result?: any }>('/api/student/direct-enroll', {
+      method: 'POST',
+      body: JSON.stringify({ courseId }),
+    }),
+
+  getStudentProfile: () =>
+    request<{ student: any }>('/api/student/profile'),
+
+  uploadStudentPhoto: (file: File) => {
+    const formData = new FormData();
+    formData.append('photo', file);
+    return request<{ success: boolean; photo_url: string; student?: any; message: string }>('/api/student/photo', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  getStudentCurriculum: (gradeGroup?: string) =>
+    request<{
+      gradeGroup: string;
+      studentEnrolledGrade: string;
+      allGradeGroups: string[];
+      modules: any[];
+      sessions: any[];
+      progress: { totalSessions: number; completedCount: number; progressPercent: number };
+    }>(`/api/student/curriculum${gradeGroup ? `?grade_group=${encodeURIComponent(gradeGroup)}` : ''}`),
+
+  toggleStudentCurriculumComplete: (sessionId: string) =>
+    request<{ completed: boolean; message: string }>('/api/student/curriculum/toggle-complete', {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId }),
+    }),
+
+  getStudentClasses: () =>
+    request<{ upcomingClasses: any[]; pastClasses: any[]; defaultMeetingLink?: string }>('/api/student/classes'),
+
+  getStudentHomework: () =>
+    request<{ homeworkList: any[] }>('/api/student/homework'),
+
+  uploadStudentFile: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{ success: boolean; url: string; fileName: string; bytes: number; format: string }>('/api/student/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  submitStudentHomework: (homeworkId: string, payload: { submission_type: string; content_text?: string; media_url?: string; file_name?: string }) =>
+    request<{ message: string }>(`/api/student/homework/${homeworkId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getStudentRecordings: () =>
+    request<{ recordings: any[] }>('/api/student/recordings'),
+
+  submitStudentHelpdeskInquiry: (payload: { category: string; subject: string; message: string }) =>
+    request<{ success: boolean; ticketNumber: string; ticketId: string; officialEmail: string; message: string }>('/api/student/helpdesk/inquiry', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getStudentHelpdeskInquiries: () =>
+    request<{ inquiries: any[] }>('/api/student/helpdesk/inquiries'),
+
+  // ==========================================
+  // HELPDESK & SUPPORT APIs
+  // ==========================================
+  getHelpdeskTickets: () =>
+    request<{ tickets: any[] }>('/api/helpdesk/tickets'),
+
+  createHelpdeskTicket: (payload: { subject: string; category: string; priority?: string; description: string; attachment_url?: string }) =>
+    request<{ message: string; ticket: { id: string; ticket_number: string } }>('/api/helpdesk/tickets', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getHelpdeskTicketById: (id: string) =>
+    request<{ ticket: any; messages: any[] }>(`/api/helpdesk/tickets/${id}`),
+
+  replyHelpdeskTicket: (id: string, payload: { message: string; attachment_url?: string }) =>
+    request<{ message: string; messageId: string }>(`/api/helpdesk/tickets/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateHelpdeskStatus: (id: string, status: string) =>
+    request<{ message: string }>(`/api/helpdesk/tickets/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
+  // ==========================================
+  // MASTER CURRICULUM APIs
+  // ==========================================
+  getCurriculumAll: () =>
+    request<{ modules: any[]; sessions: any[] }>('/api/curriculum/all'),
+
+  createCurriculumModule: (payload: any) =>
+    request<{ message: string; moduleId: string }>('/api/curriculum/modules', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  createCurriculumSession: (payload: any) =>
+    request<{ message: string; sessionId: string }>('/api/curriculum/sessions', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateCurriculumSession: (id: string, payload: any) =>
+    request<{ message: string }>(`/api/curriculum/sessions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  // Automated Academy Rebuild APIs
+  assignBatchTeacher: (batchId: string, teacherId: string) =>
+    request<{ batch: Batch; message: string }>(`/api/batches/${batchId}/teacher`, {
+      method: 'PATCH',
+      body: JSON.stringify({ teacher_id: teacherId }),
+    }),
+
+  transferStudent: (payload: { studentId: string; fromBatchId: string; toBatchId: string; reason?: string }) =>
+    request<{ success: boolean; message: string; fromBatchName?: string; toBatchName?: string }>(
+      '/api/batches/transfer',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    ),
+
+  manualEnrollStudent: (payload: { studentId: string; courseId?: string; preferredDays?: string; preferredTime?: string; gradeGroup?: string; reason?: string }) =>
+    request<{ success: boolean; message: string; result: any }>('/api/students/manual-enroll', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  retryAutoPlace: (enrollmentId: string) =>
+    request<{ success: boolean; placement: any }>(`/api/batches/auto-place/${enrollmentId}`, {
+      method: 'POST',
+    }),
+
+  getSessionAttendance: (sessionId: string) =>
+    request<{ session: any; roster: any[] }>(`/api/teacher/classes/${sessionId}/attendance`),
+
+  saveSessionAttendance: (sessionId: string, attendanceRecords: any[]) =>
+    request<{ success: boolean; message: string }>(`/api/teacher/classes/${sessionId}/attendance`, {
+      method: 'POST',
+      body: JSON.stringify({ attendanceRecords }),
+    }),
+
+  updateClassSession: (sessionId: string, updates: { teacherNotes?: string; recordingUrl?: string; status?: string; meetingLink?: string }) =>
+    request<{ session: any; message: string }>(`/api/teacher/classes/${sessionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    }),
+
+  // Notifications APIs
+  getNotifications: () =>
+    request<{ notifications: any[]; unreadCount: number }>('/api/notifications'),
+
+  markNotificationRead: (id: string) =>
+    request<{ message: string }>(`/api/notifications/${id}/read`, {
+      method: 'PATCH',
+    }),
+
+  markAllNotificationsRead: () =>
+    request<{ message: string }>('/api/notifications/read-all', {
+      method: 'POST',
+    }),
 };

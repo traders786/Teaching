@@ -29,13 +29,13 @@ export const FaqPage: React.FC<FaqPageProps> = ({ branding, onOpenDemoModal }) =
       category: 'shy',
       question: 'What if my child is extremely shy and refuses to speak?',
       answer:
-        'Over 70% of students join us feeling anxious, hesitating, or refusing to turn on their cameras in school. Our educators are trained in gentle, positive reinforcement. We never force or put a child on the spot before they are ready. In our intimate 8-student batches, shy children see other kids stumble and laugh together, which naturally dissolves performance anxiety within the first 2 weeks.',
+        'Over 70% of students join us feeling anxious, hesitating, or refusing to turn on their cameras in school. Our educators are trained in gentle, positive reinforcement. We never force or put a child on the spot before they are ready. In our intimate small-group batches, shy children see other kids stumble and laugh together, which naturally dissolves performance anxiety within the first 2 weeks.',
     },
     {
       category: 'demo',
       question: 'How does the Free 45-Minute Demo work?',
       answer:
-        'The demo is an intimate, 1-on-2 or small-trio live session on Google Meet/Zoom conducted by a senior speech mentor. We don’t deliver a boring marketing lecture. Instead, your child plays fun, interactive word games, speaks on a simple prompt, and receives a gentle, encouraging diagnostic score on their vocabulary, vocal modulation, and confidence.',
+        'The demo is an intimate, 1-on-2 or small-trio live session on Google Meet conducted by a senior speech mentor. We don’t deliver a boring marketing lecture. Instead, your child plays fun, interactive word games, speaks on a simple prompt, and receives a gentle, encouraging diagnostic score on their vocabulary, vocal modulation, and confidence.',
     },
     {
       category: 'tech',
@@ -196,15 +196,21 @@ export const FaqPage: React.FC<FaqPageProps> = ({ branding, onOpenDemoModal }) =
               </p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
-              <a
-                href={`https://wa.me/${branding.supportWhatsapp.replace(/[^\d]/g, '')}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>WhatsApp Us</span>
-              </a>
+              {(() => {
+                const rawWhatsapp = (branding?.supportWhatsapp || '7004132088').replace(/\D/g, '');
+                const cleanWhatsapp = rawWhatsapp.startsWith('91') ? rawWhatsapp : (rawWhatsapp ? `91${rawWhatsapp}` : '917004132088');
+                return (
+                  <a
+                    href={`https://wa.me/${cleanWhatsapp}?text=Hi,%20I%20have%20questions%20about%20Upspeaq%20classes%20for%20my%20child.`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>WhatsApp Us</span>
+                  </a>
+                );
+              })()}
               <a
                 href={`tel:${branding.contactPhone.replace(/\s+/g, '')}`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs"

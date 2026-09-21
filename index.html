@@ -1,93 +1,107 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (function() {
-        // 1. Intercept Object.defineProperty to ensure any future 'fetch' property definition ALWAYS has a setter
-        try {
-          var origDefineProperty = Object.defineProperty;
-          Object.defineProperty = function(obj, prop, descriptor) {
-            if (prop === 'fetch' && descriptor) {
-              if (descriptor.get && !descriptor.set) {
-                var origGet = descriptor.get;
-                var customVal = null;
-                descriptor.set = function(newVal) {
-                  customVal = newVal;
-                };
-                descriptor.get = function() {
-                  return customVal !== null ? customVal : origGet.call(this);
-                };
-              }
-              descriptor.configurable = true;
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function () {
+      // 1. Intercept Object.defineProperty to ensure any future 'fetch' property definition ALWAYS has a setter
+      try {
+        var origDefineProperty = Object.defineProperty;
+        Object.defineProperty = function (obj, prop, descriptor) {
+          if (prop === 'fetch' && descriptor) {
+            if (descriptor.get && !descriptor.set) {
+              var origGet = descriptor.get;
+              var customVal = null;
+              descriptor.set = function (newVal) {
+                customVal = newVal;
+              };
+              descriptor.get = function () {
+                return customVal !== null ? customVal : origGet.call(this);
+              };
             }
-            return origDefineProperty.call(Object, obj, prop, descriptor);
-          };
-        } catch (e) {}
-
-        // 2. Define safe own property on window and Window.prototype with both getter and setter
-        try {
-          var nativeFetch = window.fetch;
-          var activeFetch = nativeFetch;
-          function getFetch() {
-            return activeFetch || nativeFetch;
+            descriptor.configurable = true;
           }
-          function setFetch(fn) {
-            activeFetch = fn;
-          }
+          return origDefineProperty.call(Object, obj, prop, descriptor);
+        };
+      } catch (e) { }
 
-          Object.defineProperty(window, 'fetch', {
+      // 2. Define safe own property on window and Window.prototype with both getter and setter
+      try {
+        var nativeFetch = window.fetch;
+        var activeFetch = nativeFetch;
+        function getFetch() {
+          return activeFetch || nativeFetch;
+        }
+        function setFetch(fn) {
+          activeFetch = fn;
+        }
+
+        Object.defineProperty(window, 'fetch', {
+          get: getFetch,
+          set: setFetch,
+          configurable: true,
+          enumerable: true
+        });
+
+        if (typeof Window !== 'undefined' && Window.prototype) {
+          Object.defineProperty(Window.prototype, 'fetch', {
             get: getFetch,
             set: setFetch,
             configurable: true,
             enumerable: true
           });
+        }
+      } catch (e) { }
 
-          if (typeof Window !== 'undefined' && Window.prototype) {
-            Object.defineProperty(Window.prototype, 'fetch', {
-              get: getFetch,
-              set: setFetch,
-              configurable: true,
-              enumerable: true
-            });
-          }
-        } catch (e) {}
+      // 3. Error listener to prevent unhandled getter error halts
+      var filterFetchError = function (e) {
+        var msg = (e && (e.message || (e.reason && e.reason.message))) || '';
+        if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && msg.indexOf('getter') !== -1) {
+          if (e.preventDefault) e.preventDefault();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          return true;
+        }
+      };
 
-        // 3. Error listener to prevent unhandled getter error halts
-        var filterFetchError = function(e) {
-          var msg = (e && (e.message || (e.reason && e.reason.message))) || '';
-          if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && msg.indexOf('getter') !== -1) {
-            if (e.preventDefault) e.preventDefault();
-            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-            return true;
-          }
-        };
+      window.addEventListener('error', filterFetchError, true);
+      window.addEventListener('unhandledrejection', filterFetchError, true);
 
-        window.addEventListener('error', filterFetchError, true);
-        window.addEventListener('unhandledrejection', filterFetchError, true);
+      var prevOnError = window.onerror;
+      window.onerror = function (msg, url, line, col, err) {
+        if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && msg.indexOf('getter') !== -1) {
+          return true;
+        }
+        if (typeof prevOnError === 'function') {
+          return prevOnError.apply(this, arguments);
+        }
+        return false;
+      };
+    })();
+  </script>
+  <title>upspeaq — Live Communication & Confidence Classes for Students</title>
+  <meta name="description"
+    content="Live online spoken English, public speaking, and confidence-building classes for students from Class 4 to Class 12." />
+  <link rel="icon" type="image/png" href="/upspeaq-logo.png" />
+  <meta property="og:title" content="upspeaq — Live Communication & Confidence Classes for Students" />
+  <meta property="og:description"
+    content="Live online spoken English, public speaking, and confidence-building classes for students from Class 4 to Class 12." />
+  <meta property="og:image" content="/upspeaq-logo-white-bg.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="/upspeaq-logo-white-bg.png" />
+    <!-- Google Fonts for Playful EdTech Typography while preserving Upspeaq Identity -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Google Identity Services for One-Click Google Login -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
 
-        var prevOnError = window.onerror;
-        window.onerror = function(msg, url, line, col, err) {
-          if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && msg.indexOf('getter') !== -1) {
-            return true;
-          }
-          if (typeof prevOnError === 'function') {
-            return prevOnError.apply(this, arguments);
-          }
-          return false;
-        };
-      })();
-    </script>
-    <title>Speak India — Live Communication & Confidence Classes for Students</title>
-    <meta name="description" content="Live online spoken English, public speaking, and confidence-building classes for students from Class 4 to Class 12." />
-    <meta property="og:title" content="Speak India — Live Communication & Confidence Classes for Students" />
-    <meta property="og:description" content="Live online spoken English, public speaking, and confidence-building classes for students from Class 4 to Class 12." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>

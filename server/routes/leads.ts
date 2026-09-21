@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/schema.js';
-import { verifyToken, AuthenticatedRequest } from '../middleware/auth.js';
+import { verifyToken, signToken, AuthenticatedRequest } from '../middleware/auth.js';
+import { createGoogleMeetSession } from '../services/googleMeet.js';
 
 export const leadsRouter = Router();
 
@@ -18,29 +19,162 @@ function normalizePhone(phone: string): string {
   return cleaned;
 }
 
-// POST /api/leads/book-demo (Public Endpoint)
-leadsRouter.post('/book-demo', (req: Request, res: Response) => {
+/**
+ * Automatically creates a Google Meet demo session, places it into the open teacher claim pool,
+ * and sends real-time in-app notifications to all active teachers on a first-come-first-serve basis.
+ */
+export async function autoScheduleLeadDemo(leadId: string) {
+  const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
+  if (!lead) return null;
+
+  // Check if a demo attendee record already exists for this lead
+  const existingAttendee = db.prepare('SELECT id FROM demo_attendees WHERE lead_id = ?').get(leadId);
+  if (existingAttendee) return null;
+
+  // Default date: tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  let targetDate = tomorrow.toISOString().slice(0, 10);
+  let startTime = '17:00';
+  let endTime = '17:45';
+
+  const pref = (lead.preferred_time || '').toLowerCase();
+  if (pref.includes('7:00 pm') || pref.includes('8:30 pm')) {
+    startTime = '19:00';
+    endTime = '19:45';
+  } else if (pref.includes('saturday') || pref.includes('sunday') || pref.includes('morning') || pref.includes('10:30')) {
+    startTime = '10:30';
+    endTime = '11:15';
+    const d = new Date();
+    const day = d.getDay(); // 0 = Sun, 6 = Sat
+    if (pref.includes('sunday')) {
+      const daysUntilSun = (7 - day) % 7 || 7;
+      d.setDate(d.getDate() + daysUntilSun);
+      targetDate = d.toISOString().slice(0, 10);
+    } else if (pref.includes('saturday')) {
+      const daysUntilSat = (6 - day + 7) % 7 || 7;
+      d.setDate(d.getDate() + daysUntilSat);
+      targetDate = d.toISOString().slice(0, 10);
+    }
+  }
+
+  const topic = `upspeaq Demo: ${lead.student_name} (${lead.student_class})`;
+  const startDateTime = new Date(`${targetDate}T${startTime}:00`);
+
+  const meetSession = await createGoogleMeetSession({
+    topic,
+    startTime: isNaN(startDateTime.getTime()) ? undefined : startDateTime.toISOString(),
+    durationMinutes: 45,
+  });
+
+  const demoId = 'demo_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+
+  db.prepare(`
+    INSERT INTO demo_sessions (
+      id, title, date, start_time, end_time, teacher_id, meeting_link,
+      capacity, status, notes
+    )
+    VALUES (?, ?, ?, ?, ?, NULL, ?, 2, 'SCHEDULED', ?)
+  `).run(
+    demoId,
+    topic,
+    targetDate,
+    startTime,
+    endTime,
+    meetSession.joinUrl,
+    lead.notes || `Evaluation trial for ${lead.student_name} (${lead.student_class})`
+  );
+
+  const attendeeId = 'da_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+  db.prepare(`
+    INSERT INTO demo_attendees (id, demo_id, lead_id, student_name, parent_phone, attendance_status)
+    VALUES (?, ?, ?, ?, ?, 'REGISTERED')
+  `).run(attendeeId, demoId, lead.id, lead.student_name, lead.mobile_number);
+
+  db.prepare("UPDATE leads SET status = 'DEMO_SCHEDULED', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(lead.id);
+
+  db.prepare(`
+    INSERT INTO lead_activities (id, lead_id, action_type, description, actor_name, metadata_json)
+    VALUES (?, ?, 'DEMO_SCHEDULED', ?, 'System Auto-Scheduler', ?)
+  `).run(
+    'act_' + Date.now().toString(36),
+    lead.id,
+    `Demo automatically scheduled for ${targetDate} at ${startTime}. Placed in open teacher claim pool. Google Meet: ${meetSession.joinUrl}`,
+    JSON.stringify({
+      demoId,
+      meetingCode: meetSession.meetingCode,
+      meetingLink: meetSession.joinUrl,
+      provider: 'GOOGLE_MEET',
+      teacherId: null,
+    })
+  );
+
+  // Broadcast to all active teachers
+  const activeTeacherUsers = db.prepare(`
+    SELECT u.id FROM users u
+    JOIN teachers t ON u.teacher_id = t.id
+    WHERE t.status = 'ACTIVE' AND u.role = 'TEACHER'
+  `).all() as any[];
+
+  for (const u of activeTeacherUsers) {
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, user_role, title, message, type, link_url)
+      VALUES (?, ?, 'TEACHER', '🎯 New Demo Available — Claim It!', ?, 'SCHEDULE_CHANGE', '/teacher/demos')
+    `).run(
+      'notif_' + Date.now().toString(36) + '_' + u.id,
+      u.id,
+      `A new demo session for ${lead.student_name} (${lead.student_class}) is available on ${targetDate} at ${startTime}. First teacher to accept it gets assigned!`
+    );
+  }
+
+  return { demoId, meetSession, targetDate, startTime };
+}
+
+/**
+ * Auto-schedules any pending unallocated leads so they immediately enter the claim pool
+ */
+export async function autoSchedulePendingLeads() {
   try {
-    const {
-      studentName,
-      studentClass,
-      studentAge,
-      parentName,
-      mobileNumber,
-      email,
-      city,
-      interestArea,
-      preferredTime,
-      notes,
-      leadSource = 'DIRECT',
-      utmSource,
-      utmMedium,
-      utmCampaign,
-      utmContent,
-      utmTerm,
-      referralCode,
-      consent,
-    } = req.body;
+    const unattachedLeads = db.prepare(`
+      SELECT l.* FROM leads l
+      WHERE l.status = 'NEW'
+        AND NOT EXISTS (SELECT 1 FROM demo_attendees da WHERE da.lead_id = l.id)
+    `).all() as any[];
+
+    for (const lead of unattachedLeads) {
+      await autoScheduleLeadDemo(lead.id);
+    }
+  } catch (err) {
+    console.error('Auto-schedule pending leads error:', err);
+  }
+}
+
+// Automatically sync pending leads on startup
+setTimeout(() => {
+  autoSchedulePendingLeads();
+}, 1000);
+
+// POST /api/leads/book-demo (Public & Student Booking Endpoint)
+leadsRouter.post('/book-demo', async (req: Request, res: Response) => {
+  try {
+    const studentName = req.body.studentName || req.body.student_name;
+    const studentClass = req.body.studentClass || req.body.student_class;
+    const studentAge = req.body.studentAge || req.body.student_age;
+    const parentName = req.body.parentName || req.body.parent_name;
+    const mobileNumber = req.body.mobileNumber || req.body.mobile_number;
+    const email = req.body.email;
+    const city = req.body.city;
+    const interestArea = req.body.interestArea || req.body.interest_area;
+    const preferredTime = req.body.preferredTime || req.body.preferred_time;
+    const notes = req.body.notes;
+    const leadSource = req.body.leadSource || req.body.lead_source || 'DIRECT';
+    const utmSource = req.body.utmSource || req.body.utm_source;
+    const utmMedium = req.body.utmMedium || req.body.utm_medium;
+    const utmCampaign = req.body.utmCampaign || req.body.utm_campaign;
+    const utmContent = req.body.utmContent || req.body.utm_content;
+    const utmTerm = req.body.utmTerm || req.body.utm_term;
+    const referralCode = req.body.referralCode || req.body.referral_code;
+    const consent = req.body.consent !== undefined ? req.body.consent : true;
 
     if (!studentName || !studentName.trim()) {
       return res.status(400).json({ error: "Student's name is required." });
@@ -68,7 +202,7 @@ leadsRouter.post('/book-demo', (req: Request, res: Response) => {
 
     if (duplicate) {
       return res.status(409).json({
-        message: 'A demo booking request for this mobile number was recently received. Our admissions counsellor will call you shortly!',
+        message: 'A demo booking request for this mobile number was recently received. Teachers are already being allocated!',
         bookingReference: duplicate.id,
       });
     }
@@ -120,11 +254,64 @@ leadsRouter.post('/book-demo', (req: Request, res: Response) => {
       })
     );
 
+    // Automatically create demo session, link attendee, and broadcast to teachers
+    const scheduled = await autoScheduleLeadDemo(leadId);
+
+    // Auto-create / link student record
+    let student = db.prepare('SELECT * FROM students WHERE parent_phone = ? OR (lead_id = ? AND lead_id IS NOT NULL)').get(normalizedMobile, leadId) as any;
+    if (!student) {
+      const studentId = 'std_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      db.prepare(`
+        INSERT INTO students (id, lead_id, name, class_grade, parent_name, parent_phone, parent_email, city, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'DEMO')
+      `).run(
+        studentId,
+        leadId,
+        studentName.trim(),
+        studentClass.trim(),
+        parentName.trim(),
+        normalizedMobile,
+        email ? email.trim().toLowerCase() : null,
+        city ? city.trim() : null
+      );
+      student = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId) as any;
+    }
+
+    // Auto-create / link user record for instant zero-password authentication
+    const userEmail = email ? email.trim().toLowerCase() : `student_${normalizedMobile.replace(/\D/g, '')}@upspeaq.com`;
+    let user = db.prepare('SELECT * FROM users WHERE email = ? OR student_id = ?').get(userEmail, student.id) as any;
+    if (!user) {
+      const userId = 'usr_std_' + Date.now().toString(36);
+      db.prepare(`
+        INSERT INTO users (id, email, password_hash, name, role, student_id)
+        VALUES (?, ?, ?, ?, 'STUDENT', ?)
+      `).run(userId, userEmail, 'DEMO_LOGIN_HASH', studentName.trim(), student.id);
+      user = db.prepare('SELECT id, email, name, role, student_id FROM users WHERE id = ?').get(userId) as any;
+    }
+
+    // Sign instant access JWT token
+    const token = signToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: 'STUDENT',
+      student_id: student.id,
+    });
+
     return res.status(201).json({
       success: true,
-      message: 'Demo request registered successfully! Our academic coordinator will contact you via WhatsApp/Phone to confirm your preferred slot.',
+      message: 'Demo session booked and scheduled automatically! Teachers have been notified on a first-come-first-serve basis.',
       bookingReference: leadId,
       studentName: studentName.trim(),
+      demoDetails: scheduled,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: 'STUDENT',
+        student_id: student.id,
+      },
     });
   } catch (error: any) {
     console.error('Lead booking error:', error);

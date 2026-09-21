@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrandingConfig, Teacher } from '../../types';
 import { api } from '../../lib/api';
-import { Save, UserCheck, Shield, BookOpen, Award, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Save, UserCheck, Shield, BookOpen, Award, CheckCircle2, RotateCcw, Video, Key, Sparkles, ExternalLink } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface SettingsViewProps {
@@ -31,6 +31,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [maxBatchSize, setMaxBatchSize] = useState(branding.classBatchMaxSize || 9);
   const [flagshipPrice, setFlagshipPrice] = useState(branding.flagshipPrice || 4999);
   const [savingBranding, setSavingBranding] = useState(false);
+
+  // Google Meet Integration settings state
+  const [meetDefaultUrl, setMeetDefaultUrl] = useState('');
+  const [meetWorkspaceDomain, setMeetWorkspaceDomain] = useState('meet.google.com');
+  const [meetRoomPrefix, setMeetRoomPrefix] = useState('upspeaq-demo');
+  const [meetConfigured, setMeetConfigured] = useState(true);
+  const [savingMeet, setSavingMeet] = useState(false);
+
+  useEffect(() => {
+    loadMeetSettings();
+  }, []);
+
+  const loadMeetSettings = async () => {
+    try {
+      const res = await api.getMeetSettings();
+      if (res) {
+        setMeetDefaultUrl(res.defaultMeetingUrl || '');
+        setMeetWorkspaceDomain(res.workspaceDomain || 'meet.google.com');
+        setMeetRoomPrefix(res.defaultRoomPrefix || 'upspeaq-demo');
+        setMeetConfigured(true);
+      }
+    } catch (e) {
+      // Ignore
+    }
+  };
+
+  const handleSaveMeet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingMeet(true);
+    try {
+      await api.saveMeetSettings({
+        defaultMeetingUrl: meetDefaultUrl,
+        workspaceDomain: meetWorkspaceDomain,
+        defaultRoomPrefix: meetRoomPrefix,
+      });
+      setMeetConfigured(true);
+      onSuccessToast('Google Meet configuration updated successfully!');
+    } catch (err: any) {
+      onErrorToast(err.message || 'Failed to update Google Meet settings');
+    } finally {
+      setSavingMeet(false);
+    }
+  };
+
 
   // Edit Teacher Modal
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
@@ -133,7 +177,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onChange={(e) => setBrandName(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-900"
             />
-            <span className="text-[10px] text-slate-400">Default: "Speak India"</span>
+            <span className="text-[10px] text-slate-400">Default: "upspeaq"</span>
           </div>
 
           <div className="space-y-1">
@@ -224,8 +268,83 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </form>
 
+      {/* Google Meet Video Classes & Live Demo Integration */}
+      <form
+        onSubmit={handleSaveMeet}
+        className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-6"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <Video className="w-4 h-4 text-emerald-600" />
+                <span>Google Meet Live Class & Demo Integration</span>
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                ACTIVE • GOOGLE MEET READY
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Automated Google Meet room link generation for live 1-on-1 / micro trial sessions and student cohort classes
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={savingMeet}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+          >
+            <Key className="w-3.5 h-3.5" />
+            <span>{savingMeet ? 'Saving...' : 'Save Google Meet Settings'}</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="space-y-1">
+            <label className="font-bold text-slate-700 block">Workspace Domain / Service</label>
+            <input
+              type="text"
+              placeholder="meet.google.com"
+              value={meetWorkspaceDomain}
+              onChange={(e) => setMeetWorkspaceDomain(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-slate-900 bg-white"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="font-bold text-slate-700 block">Default Room Code Prefix</label>
+            <input
+              type="text"
+              placeholder="e.g. upspeaq-demo"
+              value={meetRoomPrefix}
+              onChange={(e) => setMeetRoomPrefix(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-slate-900 bg-white"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="font-bold text-slate-700 block">Default Fallback Room URL (Optional)</label>
+            <input
+              type="url"
+              placeholder="https://meet.google.com/..."
+              value={meetDefaultUrl}
+              onChange={(e) => setMeetDefaultUrl(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-slate-900 bg-white"
+            />
+          </div>
+        </div>
+
+        <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex items-start gap-2.5">
+          <Sparkles className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <strong>How It Works:</strong> When staff click "Schedule Google Meet Demo", a direct Google Meet room link is provisioned instantly with assigned speech coach and student details, formatted and ready to send to parents via WhatsApp in 1-click!
+          </div>
+        </div>
+      </form>
+
       {/* Educator Profiles Management */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-6">
+
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h2 className="text-sm font-bold text-slate-900">Educator Profiles & Bios</h2>

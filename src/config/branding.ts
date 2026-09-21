@@ -14,11 +14,11 @@ export interface BrandingConfig {
 }
 
 export const defaultBranding: BrandingConfig = {
-  brandName: 'Speak India',
+  brandName: 'upspeaq',
   tagline: 'Every Child Deserves the Confidence to Speak',
-  contactEmail: 'admissions@speakindia.in',
-  contactPhone: '+91 98765 43210',
-  supportWhatsapp: '+91 98765 43210',
+  contactEmail: 'upspeaqofficial@gmail.com',
+  contactPhone: '+91 7004132088',
+  supportWhatsapp: '+91 7004132088',
   primaryColor: '#1E293B',
   accentColor: '#D97706',
   flagshipPrice: 4999,

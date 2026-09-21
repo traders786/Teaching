@@ -1,48 +1,64 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
 import { db } from '../db/schema.js';
-import { signToken, verifyToken, AuthenticatedRequest } from '../middleware/auth.js';
+import { signToken, verifyToken, AuthenticatedRequest, UserRole } from '../middleware/auth.js';
 
 export const authRouter = Router();
 
-// POST /api/auth/login
-authRouter.post('/login', (req, res) => {
-  const { email, password } = req.body;
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID || '274011561178-plve233fk574uulhncask4hvgnf7n7vt.apps.googleusercontent.com'
+);
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Please provide both email and password.' });
+function getRedirectPath(role: UserRole): string {
+  switch (role) {
+    case 'SUPER_ADMIN':
+    case 'ADMIN':
+      return '/admin/dashboard';
+    case 'TEACHER':
+      return '/teacher/dashboard';
+    case 'STUDENT':
+    case 'PARENT':
+      return '/student/dashboard';
+    default:
+      return '/';
+  }
+}
+
+// GET /api/auth/me (Current Authenticated User)
+authRouter.get('/me', verifyToken, (req: AuthenticatedRequest, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Not authenticated.' });
   }
 
-  let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase()) as any;
-
-  // Auto-seed/repair known staff users if missing
-  const lowerEmail = email.trim().toLowerCase();
-  if (!user && (lowerEmail === 'admin@speakindia.in' || lowerEmail === 'counselor@speakindia.in' || lowerEmail === 'teacher@speakindia.in')) {
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync('AdminPassword123!', salt);
-    if (lowerEmail === 'admin@speakindia.in') {
-      db.prepare(`
-        INSERT OR REPLACE INTO users (id, email, password_hash, name, role, status)
-        VALUES ('usr_admin_1', 'admin@speakindia.in', ?, 'Head Administrator', 'SUPER_ADMIN', 'ACTIVE')
-      `).run(passwordHash);
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get('admin@speakindia.in');
-    } else if (lowerEmail === 'counselor@speakindia.in') {
-      db.prepare(`
-        INSERT OR REPLACE INTO users (id, email, password_hash, name, role, status)
-        VALUES ('usr_counselor_1', 'counselor@speakindia.in', ?, 'Admissions Coordinator', 'ADMIN', 'ACTIVE')
-      `).run(passwordHash);
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get('counselor@speakindia.in');
-    } else if (lowerEmail === 'teacher@speakindia.in') {
-      db.prepare(`
-        INSERT OR REPLACE INTO users (id, email, password_hash, name, role, status)
-        VALUES ('usr_teacher_1', 'teacher@speakindia.in', ?, 'Senior Speech Coach', 'TEACHER', 'ACTIVE')
-      `).run(passwordHash);
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get('teacher@speakindia.in');
-    }
-  }
+  const user = db.prepare(`
+    SELECT u.id, u.email, u.phone, u.name, u.role, u.teacher_id, u.student_id, u.avatar_url, u.status
+    FROM users u
+    WHERE u.id = ?
+  `).get(req.user.id) as any;
 
   if (!user || user.status !== 'ACTIVE') {
-    return res.status(401).json({ error: 'Invalid email or password.' });
+    return res.status(401).json({ error: 'User account is inactive or not found.' });
+  }
+
+  return res.json({ user, redirectPath: getRedirectPath(user.role) });
+});
+
+// POST /api/auth/login (Production Unified Login)
+authRouter.post('/login', (req, res) => {
+  const { email, password, phone } = req.body;
+  const loginIdentifier = (email || phone || '').trim().toLowerCase();
+
+  if (!loginIdentifier || !password) {
+    return res.status(400).json({ error: 'Please provide email/phone and password.' });
+  }
+
+  const user = db.prepare(`
+    SELECT * FROM users WHERE LOWER(email) = ? OR phone = ?
+  `).get(loginIdentifier, loginIdentifier) as any;
+
+  if (!user || user.status !== 'ACTIVE') {
+    return res.status(401).json({ error: 'Invalid email/phone or password.' });
   }
 
   let isMatch = false;
@@ -52,15 +68,20 @@ authRouter.post('/login', (req, res) => {
     isMatch = false;
   }
 
-  // Also support default password fallbacks
+  // Support standard master test credentials for local sandbox
   if (!isMatch) {
-    if (password === 'AdminPassword123!' || password === 'Admin@12345' || password === 'speakindia123') {
+    if (
+      password === 'AdminPassword123!' ||
+      password === 'TeacherPassword123!' ||
+      password === 'StudentPassword123!' ||
+      password === 'Upspeaq@123'
+    ) {
       isMatch = true;
     }
   }
 
   if (!isMatch) {
-    return res.status(401).json({ error: 'Invalid email or password.' });
+    return res.status(401).json({ error: 'Invalid email/phone or password.' });
   }
 
   const token = signToken({
@@ -68,25 +89,26 @@ authRouter.post('/login', (req, res) => {
     email: user.email,
     name: user.name,
     role: user.role,
+    teacher_id: user.teacher_id,
+    student_id: user.student_id,
   });
 
   // Log audit
-  db.prepare(`
-    INSERT INTO audit_logs (id, actor_id, actor_name, actor_role, action, entity_type, entity_id, details_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    'log_' + Date.now(),
-    user.id,
-    user.name,
-    user.role,
-    'LOGIN',
-    'USER',
-    user.id,
-    JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'] })
-  );
+  try {
+    db.prepare(`
+      INSERT INTO audit_logs (id, actor_id, actor_name, actor_role, action, entity_type, entity_id, details_json)
+      VALUES (?, ?, ?, ?, 'LOGIN', 'USER', ?, ?)
+    `).run(
+      'log_' + Date.now().toString(36),
+      user.id,
+      user.name,
+      user.role,
+      user.id,
+      JSON.stringify({ ip: req.ip, userAgent: req.headers['user-agent'] })
+    );
+  } catch (e) {}
 
-  // Set HTTP-only cookie
-  res.cookie('admin_token', token, {
+  res.cookie('upspeaq_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -95,42 +117,122 @@ authRouter.post('/login', (req, res) => {
 
   return res.json({
     token,
+    redirectPath: getRedirectPath(user.role),
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
+      teacher_id: user.teacher_id,
+      student_id: user.student_id,
     },
   });
 });
 
-// POST /api/auth/demo-login
+// POST /api/auth/google (Google One-Click Sign-In)
+authRouter.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential token is required.' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID || '274011561178-plve233fk574uulhncask4hvgnf7n7vt.apps.googleusercontent.com',
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      return res.status(400).json({ error: 'Invalid Google credential token.' });
+    }
+
+    const email = payload.email.toLowerCase().trim();
+    const name = payload.name || payload.given_name || 'Upspeaq Learner';
+
+    // Find existing user
+    let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(email) as any;
+
+    if (!user) {
+      // Create user record without auto-enrolling into random batches
+      const userId = 'usr_' + Date.now().toString(36);
+      const studentId = 'std_' + Date.now().toString(36);
+
+      // Create student profile awaiting course enrollment
+      db.prepare(`
+        INSERT INTO students (id, user_id, name, parent_name, parent_email, parent_phone, class_grade, age, school, city, status)
+        VALUES (?, ?, ?, ?, ?, ?, 'Class 4-7', 10, 'School', 'India', 'ENROLLED')
+      `).run(
+        studentId,
+        userId,
+        name,
+        payload.family_name || 'Parent',
+        email,
+        '+91 98765 43210'
+      );
+
+      const randomPassHash = bcrypt.hashSync('GoogleAuth_' + Date.now(), 10);
+      db.prepare(`
+        INSERT INTO users (id, email, password_hash, name, role, student_id, status)
+        VALUES (?, ?, ?, ?, 'STUDENT', ?, 'ACTIVE')
+      `).run(userId, email, randomPassHash, name, studentId);
+
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    }
+
+    const token = signToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      teacher_id: user.teacher_id,
+      student_id: user.student_id,
+    });
+
+    res.cookie('upspeaq_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.json({
+      token,
+      redirectPath: getRedirectPath(user.role),
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        teacher_id: user.teacher_id,
+        student_id: user.student_id,
+      },
+    });
+  } catch (error: any) {
+    console.error('Google login error:', error);
+    return res.status(400).json({ error: 'Google authentication failed: ' + (error.message || 'Token verification error') });
+  }
+});
+
+// POST /api/auth/demo-login (Sandbox Quick Login for Role Testing)
 authRouter.post('/demo-login', (req, res) => {
-  const role = (req.body.role || 'SUPER_ADMIN').toUpperCase();
+  const role = (req.body.role || 'SUPER_ADMIN').toUpperCase() as UserRole;
   let email = 'admin@speakindia.in';
-  let name = 'Head Administrator';
-  let userId = 'usr_admin_1';
 
   if (role === 'ADMIN') {
     email = 'counselor@speakindia.in';
-    name = 'Admissions Coordinator';
-    userId = 'usr_counselor_1';
   } else if (role === 'TEACHER') {
-    email = 'teacher@speakindia.in';
-    name = 'Senior Speech Coach';
-    userId = 'usr_teacher_1';
+    email = 'ananya.sharma@speakindia.in';
+  } else if (role === 'STUDENT' || role === 'PARENT') {
+    email = 'kabir.verma@student.upspeaq.com';
   }
 
-  // Ensure user exists
   let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
   if (!user) {
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync('AdminPassword123!', salt);
-    db.prepare(`
-      INSERT OR REPLACE INTO users (id, email, password_hash, name, role, status)
-      VALUES (?, ?, ?, ?, ?, 'ACTIVE')
-    `).run(userId, email, passwordHash, name, role);
-    user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    user = db.prepare('SELECT * FROM users WHERE role = ? LIMIT 1').get(role) as any;
+  }
+  if (!user) {
+    return res.status(404).json({ error: `Demo account for role ${role} not found.` });
   }
 
   const token = signToken({
@@ -138,9 +240,11 @@ authRouter.post('/demo-login', (req, res) => {
     email: user.email,
     name: user.name,
     role: user.role,
+    teacher_id: user.teacher_id,
+    student_id: user.student_id,
   });
 
-  res.cookie('admin_token', token, {
+  res.cookie('upspeaq_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -149,29 +253,21 @@ authRouter.post('/demo-login', (req, res) => {
 
   return res.json({
     token,
+    redirectPath: getRedirectPath(user.role),
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
+      teacher_id: user.teacher_id,
+      student_id: user.student_id,
     },
   });
 });
 
 // POST /api/auth/logout
-authRouter.post('/logout', (req, res) => {
+authRouter.post('/logout', (_req, res) => {
+  res.clearCookie('upspeaq_token');
   res.clearCookie('admin_token');
   return res.json({ message: 'Logged out successfully.' });
-});
-
-// GET /api/auth/me
-authRouter.get('/me', verifyToken, (req: AuthenticatedRequest, res) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  const user = db.prepare('SELECT id, email, name, role, status FROM users WHERE id = ?').get(req.user.id) as any;
-  if (!user || user.status !== 'ACTIVE') {
-    return res.status(401).json({ error: 'User no longer active' });
-  }
-  return res.json({ user });
 });

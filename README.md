@@ -1,4 +1,4 @@
-# Speak India — Communication & Confidence Platform
+# upspeaq — Communication & Confidence Platform
 
 > **Empowering Young Minds with Voice, Courage & Conviction**  
 > An interactive public speaking, debate, and spoken English communication platform tailored for school students (Classes 4–12).

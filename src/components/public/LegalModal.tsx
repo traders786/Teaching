@@ -25,7 +25,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, type, onClose, b
           <>
             <p className="font-bold text-slate-900">1. Student Safety & Data Protection</p>
             <p>
-              At {branding.brandName}, the privacy and safety of our minor students (Class 4 to Class 12) is our
+              At {branding.brandName}, the privacy and safety of our minor students (UKG to Class 10) is our
               highest priority. We only collect essential parent and student contact details necessary to schedule
               demo evaluations and maintain active cohort records.
             </p>
@@ -49,8 +49,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, type, onClose, b
             <p className="font-bold text-slate-900">1. Academic Enrollment & Term Structure</p>
             <p>
               The flagship program comprises 36 live interactive sessions spanning approximately 3 months (12 weeks).
-              Batches are strictly capped at a target of {branding.classBatchTargetSize} students (with an absolute ceiling
-              of {branding.classBatchMaxSize}) to guarantee individual speaking feedback.
+              Batches are strictly capped as intimate small-group cohorts to guarantee individual speaking feedback.
             </p>
 
             <p className="font-bold text-slate-900">2. Attendance & Missed Classes</p>

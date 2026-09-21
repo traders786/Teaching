@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { api } from '../../lib/api';
 import { Payment, BrandingConfig } from '../../types';
 import { ShieldCheck, CheckCircle2, AlertCircle, CreditCard, Smartphone, Building, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Logo } from '../ui/Logo';
 
 interface ParentPaymentPortalProps {
   paymentId: string;
@@ -111,17 +112,22 @@ export const ParentPaymentPortal: React.FC<ParentPaymentPortalProps> = ({
     <div className="min-h-screen bg-[#F6F6F2] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Top Header */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onBackToHome}
-            className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to {branding.brandName}</span>
-          </button>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-            <ShieldCheck className="w-4 h-4" />
-            <span>256-bit Bank-Grade Security</span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200/80 pb-6">
+          <div className="flex items-center gap-3">
+            <Logo theme="light" size="md" />
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBackToHome}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors bg-white px-3 py-1.5 rounded-lg border border-slate-200"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Home</span>
+            </button>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+              <ShieldCheck className="w-4 h-4" />
+              <span>256-bit Bank-Grade Security</span>
+            </div>
           </div>
         </div>
 
@@ -197,7 +203,7 @@ export const ParentPaymentPortal: React.FC<ParentPaymentPortalProps> = ({
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">{payment.course_name}</h2>
               <p className="text-xs text-slate-600">
-                3-Month Live Cohort • 36 Interactive Classes • Strictly 8-Student Batches
+                3-Month Live Cohort • 36 Interactive Classes • Intimate Small-Group Batches
               </p>
             </div>
 

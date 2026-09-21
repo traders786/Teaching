@@ -1,19 +1,45 @@
 import { Router, Response } from 'express';
 import { db } from '../db/schema.js';
 import { verifyToken, AuthenticatedRequest } from '../middleware/auth.js';
+import { createGoogleMeetSession, getGoogleMeetSettings } from '../services/googleMeet.js';
 
 export const demosRouter = Router();
+
+// GET /api/demos/meet-status (Check Google Meet configuration)
+demosRouter.get(['/meet-status', '/zoom-status'], verifyToken, (req: AuthenticatedRequest, res: Response) => {
+  const settings = getGoogleMeetSettings();
+  return res.json({
+    isConfigured: true,
+    provider: 'GOOGLE_MEET',
+    workspaceDomain: settings.workspaceDomain,
+    defaultRoomPrefix: settings.defaultRoomPrefix,
+  });
+});
 
 // GET /api/demos (List all demo sessions with attendees and teacher details)
 demosRouter.get('/', verifyToken, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const demos = db.prepare(`
+    const { status } = req.query;
+    let query = `
       SELECT ds.*, t.name as teacher_name, t.email as teacher_email,
-        (SELECT COUNT(*) FROM demo_attendees da WHERE da.demo_id = ds.id) as attendee_count
+        (SELECT COUNT(*) FROM demo_attendees da WHERE da.demo_id = ds.id) as attendee_count,
+        (SELECT l.student_name FROM demo_attendees da JOIN leads l ON da.lead_id = l.id WHERE da.demo_id = ds.id LIMIT 1) as student_name,
+        (SELECT l.student_class FROM demo_attendees da JOIN leads l ON da.lead_id = l.id WHERE da.demo_id = ds.id LIMIT 1) as student_class,
+        (SELECT l.parent_name FROM demo_attendees da JOIN leads l ON da.lead_id = l.id WHERE da.demo_id = ds.id LIMIT 1) as parent_name,
+        (SELECT l.mobile_number FROM demo_attendees da JOIN leads l ON da.lead_id = l.id WHERE da.demo_id = ds.id LIMIT 1) as parent_phone
       FROM demo_sessions ds
       LEFT JOIN teachers t ON ds.teacher_id = t.id
-      ORDER BY ds.date ASC, ds.start_time ASC
-    `).all();
+    `;
+    const params: any[] = [];
+
+    if (status && status !== 'ALL') {
+      query += ' WHERE ds.status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY ds.date DESC, ds.start_time DESC';
+
+    const demos = db.prepare(query).all(...params);
 
     return res.json({ demos });
   } catch (error: any) {
@@ -22,8 +48,8 @@ demosRouter.get('/', verifyToken, (req: AuthenticatedRequest, res: Response) => 
   }
 });
 
-// POST /api/demos (Create new demo session)
-demosRouter.post('/', verifyToken, (req: AuthenticatedRequest, res: Response) => {
+// POST /api/demos/create-meet (Dedicated 1-Click Google Meet Demo Session Creation)
+demosRouter.post(['/create-meet', '/create-zoom'], verifyToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const leadId = req.body.lead_id || req.body.leadId;
     let lead: any = null;
@@ -32,19 +58,164 @@ demosRouter.post('/', verifyToken, (req: AuthenticatedRequest, res: Response) =>
     }
 
     const scheduledAt = req.body.scheduled_at || req.body.scheduledAt;
-    const title = req.body.title || (lead ? `Evaluation: ${lead.student_name}` : 'Live Trial Session');
     const date = req.body.date || (scheduledAt ? scheduledAt.slice(0, 10) : new Date().toISOString().slice(0, 10));
     const startTime = req.body.startTime || req.body.start_time || (scheduledAt && scheduledAt.length > 11 ? scheduledAt.slice(11, 16) : '17:00');
     const endTime = req.body.endTime || req.body.end_time || '17:45';
     const teacherId = req.body.teacherId || req.body.teacher_id || null;
-    const meetingLink = req.body.meetingLink || req.body.meeting_link || 'https://meet.google.com/speak-india-demo';
-    const capacity = req.body.capacity || 2;
-    const notes = req.body.notes || (lead ? `Class ${lead.student_class} evaluation` : null);
+    const notes = req.body.notes || (lead ? `Evaluation trial for ${lead.student_name} (${lead.student_class})` : 'upspeaq Trial Session');
+
+    const studentTitleName = lead ? `${lead.student_name} (${lead.student_class})` : 'Student Evaluation';
+    const topic = req.body.topic || req.body.title || `upspeaq Demo: ${studentTitleName}`;
+
+    // Combine date + startTime for ISO
+    const startDateTime = new Date(`${date}T${startTime}:00`);
+
+    // Create Google Meet room session
+    const customLink = req.body.meetingLink || req.body.meeting_link;
+    let customCode: string | undefined = undefined;
+    if (customLink && customLink.includes('meet.google.com/')) {
+      customCode = customLink.split('meet.google.com/')[1].split('?')[0];
+    }
+
+    const meetSession = await createGoogleMeetSession({
+      topic,
+      startTime: isNaN(startDateTime.getTime()) ? undefined : startDateTime.toISOString(),
+      durationMinutes: 45,
+      customMeetingLink: customLink,
+    });
 
     const demoId = 'demo_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
     db.prepare(`
-      INSERT INTO demo_sessions (id, title, date, start_time, end_time, teacher_id, meeting_link, capacity, status, notes)
+      INSERT INTO demo_sessions (
+        id, title, date, start_time, end_time, teacher_id, meeting_link,
+        capacity, status, notes
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, 2, 'SCHEDULED', ?)
+    `).run(
+      demoId,
+      topic,
+      date,
+      startTime,
+      endTime,
+      teacherId || null,
+      meetSession.joinUrl,
+      notes || null
+    );
+
+    // If attached to a lead, register attendee, update lead status to DEMO_SCHEDULED, and log activity
+    if (lead) {
+      const attendeeId = 'da_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      db.prepare(`
+        INSERT INTO demo_attendees (id, demo_id, lead_id, student_name, parent_phone, attendance_status)
+        VALUES (?, ?, ?, ?, ?, 'REGISTERED')
+      `).run(attendeeId, demoId, lead.id, lead.student_name, lead.mobile_number);
+
+      db.prepare("UPDATE leads SET status = 'DEMO_SCHEDULED', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(lead.id);
+
+      // Fetch teacher name if assigned
+      let teacherName = 'Assigned Coach';
+      if (teacherId) {
+        const teacherRow = db.prepare('SELECT name FROM teachers WHERE id = ?').get(teacherId) as any;
+        if (teacherRow?.name) teacherName = teacherRow.name;
+      }
+
+      db.prepare(`
+        INSERT INTO lead_activities (id, lead_id, action_type, description, actor_name, actor_id, metadata_json)
+        VALUES (?, ?, 'DEMO_SCHEDULED', ?, ?, ?, ?)
+      `).run(
+        'act_' + Date.now().toString(36),
+        lead.id,
+        `Google Meet Demo Session created for ${date} at ${startTime} (Educator: ${teacherName}). Google Meet: ${meetSession.joinUrl}`,
+        req.user?.name || 'Academic Coordinator',
+        req.user?.id,
+        JSON.stringify({
+          demoId,
+          meetingCode: meetSession.meetingCode,
+          meetingLink: meetSession.joinUrl,
+          provider: 'GOOGLE_MEET',
+          teacherId,
+        })
+      );
+    }
+
+    const created = db.prepare(`
+      SELECT ds.*, t.name as teacher_name, t.email as teacher_email
+      FROM demo_sessions ds
+      LEFT JOIN teachers t ON ds.teacher_id = t.id
+      WHERE ds.id = ?
+    `).get(demoId);
+
+    // If no teacher assigned, broadcast to ALL active teachers — first to claim wins
+    if (!teacherId) {
+      const studentLabel = lead ? `${lead.student_name} (${lead.student_class})` : 'a new student';
+      const activeTeacherUsers = db.prepare(`
+        SELECT u.id FROM users u
+        JOIN teachers t ON u.teacher_id = t.id
+        WHERE t.status = 'ACTIVE' AND u.role = 'TEACHER'
+      `).all() as any[];
+
+      for (const u of activeTeacherUsers) {
+        db.prepare(`
+          INSERT INTO notifications (id, user_id, user_role, title, message, type, link_url)
+          VALUES (?, ?, 'TEACHER', '🎯 New Demo Available — Claim It!', ?, 'SCHEDULE_CHANGE', '/teacher/demos')
+        `).run(
+          'notif_' + Date.now().toString(36) + '_' + u.id,
+          u.id,
+          `A new demo session for ${studentLabel} is available on ${date} at ${startTime}. First teacher to accept it gets assigned!`
+        );
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      demo: created,
+      meet: meetSession,
+      zoom: meetSession, // backward-compat object
+      message: 'Google Meet Demo Session created successfully!',
+    });
+  } catch (error: any) {
+    console.error('Create Google Meet demo error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to create Google Meet demo session.' });
+  }
+});
+
+// POST /api/demos (Create new demo session - standard)
+demosRouter.post('/', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const leadId = req.body.lead_id || req.body.leadId;
+    let lead: any = null;
+    if (leadId) {
+      lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
+    }
+
+    const scheduledAt = req.body.scheduled_at || req.body.scheduledAt;
+    const date = req.body.date || (scheduledAt ? scheduledAt.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    const startTime = req.body.startTime || req.body.start_time || (scheduledAt && scheduledAt.length > 11 ? scheduledAt.slice(11, 16) : '17:00');
+    const endTime = req.body.endTime || req.body.end_time || '17:45';
+    const teacherId = req.body.teacherId || req.body.teacher_id || null;
+    const capacity = req.body.capacity || 2;
+    const notes = req.body.notes || (lead ? `Class ${lead.student_class} evaluation` : null);
+    const title = req.body.title || (lead ? `Evaluation: ${lead.student_name}` : 'Live Trial Session');
+
+    let meetingLink = req.body.meetingLink || req.body.meeting_link;
+
+    // If meeting link is not provided, generate Google Meet session
+    if (!meetingLink) {
+      const meetSession = await createGoogleMeetSession({
+        topic: title,
+        durationMinutes: 45,
+      });
+      meetingLink = meetSession.joinUrl;
+    }
+
+    const demoId = 'demo_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+
+    db.prepare(`
+      INSERT INTO demo_sessions (
+        id, title, date, start_time, end_time, teacher_id, meeting_link,
+        capacity, status, notes
+      )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'SCHEDULED', ?)
     `).run(
       demoId,
@@ -61,9 +232,9 @@ demosRouter.post('/', verifyToken, (req: AuthenticatedRequest, res: Response) =>
     if (lead) {
       const attendeeId = 'da_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
       db.prepare(`
-        INSERT INTO demo_attendees (id, demo_id, lead_id, attendance_status)
-        VALUES (?, ?, ?, 'REGISTERED')
-      `).run(attendeeId, demoId, lead.id);
+        INSERT INTO demo_attendees (id, demo_id, lead_id, student_name, parent_phone, attendance_status)
+        VALUES (?, ?, ?, ?, ?, 'REGISTERED')
+      `).run(attendeeId, demoId, lead.id, lead.student_name, lead.mobile_number);
 
       db.prepare("UPDATE leads SET status = 'DEMO_SCHEDULED', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(lead.id);
 
@@ -73,14 +244,36 @@ demosRouter.post('/', verifyToken, (req: AuthenticatedRequest, res: Response) =>
       `).run(
         'act_' + Date.now(),
         lead.id,
-        `Demo session booked for ${date} at ${startTime}.`,
+        `Demo session booked for ${date} at ${startTime}. Google Meet: ${meetingLink}`,
         req.user?.name || 'Administrator',
         req.user?.id
       );
     }
 
     const created = db.prepare('SELECT * FROM demo_sessions WHERE id = ?').get(demoId);
-    return res.status(201).json({ demo: created, message: 'Demo session scheduled successfully.' });
+
+    // If no teacher assigned, broadcast to ALL active teachers — first to claim wins
+    if (!teacherId) {
+      const studentLabel = lead ? `${lead.student_name} (${lead.student_class})` : 'a new student';
+      const activeTeacherUsers = db.prepare(`
+        SELECT u.id FROM users u
+        JOIN teachers t ON u.teacher_id = t.id
+        WHERE t.status = 'ACTIVE' AND u.role = 'TEACHER'
+      `).all() as any[];
+
+      for (const u of activeTeacherUsers) {
+        db.prepare(`
+          INSERT INTO notifications (id, user_id, user_role, title, message, type, link_url)
+          VALUES (?, ?, 'TEACHER', '🎯 New Demo Available — Claim It!', ?, 'SCHEDULE_CHANGE', '/teacher/demos')
+        `).run(
+          'notif_' + Date.now().toString(36) + '_' + u.id,
+          u.id,
+          `A new demo session for ${studentLabel} is available on ${date} at ${startTime}. First teacher to accept it gets assigned!`
+        );
+      }
+    }
+
+    return res.status(201).json({ demo: created, message: 'Google Meet demo session scheduled successfully.' });
   } catch (error: any) {
     console.error('Create demo error:', error);
     return res.status(500).json({ error: 'Failed to create demo session.' });
@@ -198,7 +391,7 @@ demosRouter.post('/:id/attendees', verifyToken, (req: AuthenticatedRequest, res:
     `).run(
       'act_' + Date.now(),
       lead.id,
-      `Scheduled for demo session "${demo.title}" on ${demo.date} at ${demo.start_time}.`,
+      `Scheduled for demo session "${demo.title}" on ${demo.date} at ${demo.start_time}. Google Meet: ${demo.meeting_link}`,
       req.user?.name || 'Administrator',
       req.user?.id
     );

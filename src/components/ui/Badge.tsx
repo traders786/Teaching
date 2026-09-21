@@ -57,12 +57,16 @@ export const LeadSourceBadge: React.FC<{ source: LeadSource | string }> = ({ sou
   return <Badge variant="neutral">{labels[source] || source}</Badge>;
 };
 
-export const DemoStatusBadge: React.FC<{ status: DemoStatus }> = ({ status }) => {
-  const map: Record<DemoStatus, { label: string; variant: BadgeProps['variant'] }> = {
+export const DemoStatusBadge: React.FC<{ status: DemoStatus | string }> = ({ status }) => {
+  const map: Record<string, { label: string; variant: BadgeProps['variant'] }> = {
+    NEW: { label: 'New', variant: 'info' },
+    ASSIGNED: { label: 'Assigned', variant: 'info' },
     SCHEDULED: { label: 'Scheduled', variant: 'info' },
+    IN_PROGRESS: { label: 'In Progress', variant: 'warning' },
     COMPLETED: { label: 'Completed', variant: 'success' },
-    CANCELLED: { label: 'Cancelled', variant: 'danger' },
     NO_SHOW: { label: 'No Show', variant: 'warning' },
+    RESCHEDULED: { label: 'Rescheduled', variant: 'warning' },
+    CANCELLED: { label: 'Cancelled', variant: 'danger' },
   };
 
   const item = map[status] || { label: status, variant: 'neutral' };
@@ -81,10 +85,11 @@ export const PaymentStatusBadge: React.FC<{ status: PaymentStatus }> = ({ status
   return <Badge variant={item.variant}>{item.label}</Badge>;
 };
 
-export const BatchStatusBadge: React.FC<{ status: BatchStatus }> = ({ status }) => {
-  const map: Record<BatchStatus, { label: string; variant: BadgeProps['variant'] }> = {
+export const BatchStatusBadge: React.FC<{ status: BatchStatus | string }> = ({ status }) => {
+  const map: Record<string, { label: string; variant: BadgeProps['variant'] }> = {
     UPCOMING: { label: 'Upcoming', variant: 'info' },
     ACTIVE: { label: 'In Progress', variant: 'success' },
+    FULL: { label: 'Batch Full', variant: 'warning' },
     COMPLETED: { label: 'Completed', variant: 'neutral' },
     CANCELLED: { label: 'Cancelled', variant: 'danger' },
   };
@@ -93,12 +98,16 @@ export const BatchStatusBadge: React.FC<{ status: BatchStatus }> = ({ status }) 
   return <Badge variant={item.variant}>{item.label}</Badge>;
 };
 
-export const StudentStatusBadge: React.FC<{ status: StudentStatus }> = ({ status }) => {
-  const map: Record<StudentStatus, { label: string; variant: BadgeProps['variant'] }> = {
+export const StudentStatusBadge: React.FC<{ status: StudentStatus | string }> = ({ status }) => {
+  const map: Record<string, { label: string; variant: BadgeProps['variant'] }> = {
+    LEAD: { label: 'Lead', variant: 'info' },
+    DEMO: { label: 'Demo Completed', variant: 'info' },
+    ENROLLED: { label: 'Enrolled', variant: 'success' },
     ACTIVE: { label: 'Active Learner', variant: 'success' },
     PENDING: { label: 'Batch Pending', variant: 'warning' },
     PAUSED: { label: 'Paused', variant: 'warning' },
     COMPLETED: { label: 'Graduated', variant: 'neutral' },
+    INACTIVE: { label: 'Inactive', variant: 'neutral' },
     EXPIRED: { label: 'Expired', variant: 'danger' },
     CANCELLED: { label: 'Cancelled', variant: 'neutral' },
   };

@@ -15,7 +15,11 @@ import {
   Copy,
   ExternalLink,
   PlusCircle,
+  Video,
+  Sparkles,
+  Share2,
 } from 'lucide-react';
+
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -52,8 +56,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16)
   );
   const [demoTeacherId, setDemoTeacherId] = useState(teachers[0]?.id || '');
-  const [meetingLink, setMeetingLink] = useState('https://meet.google.com/spi-demo-class');
+  const [useAutoMeet, setUseAutoMeet] = useState(true);
+  const [meetingLink, setMeetingLink] = useState('');
   const [schedulingDemo, setSchedulingDemo] = useState(false);
+  const [scheduledMeetResult, setScheduledMeetResult] = useState<{
+    joinUrl: string;
+    meetingCode?: string;
+    teacherName?: string;
+    scheduledAt?: string;
+  } | null>(null);
 
   // Payment Link generation state
   const [showCreatePayment, setShowCreatePayment] = useState(false);
@@ -65,7 +76,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const handleStatusChange = async (newStatus: string) => {
     try {
       await api.updateLeadStatus(lead.id, newStatus);
-      setStatus(newStatus);
+      setStatus(newStatus as any);
       onLeadUpdated();
       onSuccessToast(`Lead status updated to ${newStatus}`);
     } catch (err: any) {
@@ -90,21 +101,68 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     e.preventDefault();
     setSchedulingDemo(true);
     try {
-      await api.createDemo({
+      const selectedTeacher = teachers.find((t) => t.id === demoTeacherId);
+      const teacherName = selectedTeacher?.name || 'Assigned Coach';
+
+      const res = await api.createMeetDemo({
         lead_id: lead.id,
         scheduled_at: demoDate,
-        teacher_id: demoTeacherId || undefined,
-        meeting_link: meetingLink,
+        teacherId: demoTeacherId || undefined,
+        meetingLink: meetingLink.trim() || undefined,
         notes: `Demo for ${lead.student_name} (${lead.student_class})`,
       });
+
+      setScheduledMeetResult({
+        joinUrl: res.meet?.joinUrl || res.demo?.meeting_link,
+        meetingCode: res.meet?.meetingCode || undefined,
+        teacherName,
+        scheduledAt: demoDate,
+      });
+
+      onSuccessToast('Google Meet Demo Session scheduled successfully!');
       setShowScheduleDemo(false);
       onLeadUpdated();
-      onSuccessToast('Demo session scheduled! Lead moved to DEMO_SCHEDULED.');
     } catch (err: any) {
-      onErrorToast(err.message || 'Failed to schedule demo');
+      onErrorToast(err.message || 'Failed to schedule Google Meet demo');
     } finally {
       setSchedulingDemo(false);
     }
+  };
+
+  const getWhatsAppInviteMessage = () => {
+    const formattedDate = new Date(demoDate).toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const selectedTeacher = teachers.find((t) => t.id === demoTeacherId);
+    const teacherName = scheduledMeetResult?.teacherName || selectedTeacher?.name || 'Senior Communication Coach';
+    const link = scheduledMeetResult?.joinUrl || meetingLink || 'https://meet.google.com/upspeaq-demo';
+
+    return `*upspeaq — Free 1-on-1 / Micro Demo Session Confirmation*\n\n` +
+      `Dear ${lead.parent_name},\n` +
+      `We have reserved a live interactive trial class for *${lead.student_name}* (${lead.student_class})!\n\n` +
+      `📅 *Date & Time:* ${formattedDate}\n` +
+      `👩‍🏫 *Educator:* ${teacherName}\n` +
+      `🎯 *Focus:* Spoken English, Articulation & Stage Confidence\n\n` +
+      `🔗 *Google Meet Join Link:* ${link}\n\n` +
+      `📌 *Instructions:*\n` +
+      `1. Please join 5 minutes early on a laptop/tablet with audio & video enabled.\n` +
+      `2. Keep a notebook and pen handy.\n\n` +
+      `For any questions, feel free to reply directly to this chat.\n` +
+      `— Admissions Team, upspeaq`;
+  };
+
+  const copyWhatsAppInvite = () => {
+    const text = getWhatsAppInviteMessage();
+    navigator.clipboard.writeText(text);
+    onSuccessToast('WhatsApp Demo Invitation copied to clipboard!');
+  };
+
+  const openWhatsAppDirect = () => {
+    const cleanDigits = lead.mobile_number.replace(/\D/g, '');
+    const phone = cleanDigits.startsWith('91') ? cleanDigits : (cleanDigits.length === 10 ? `91${cleanDigits}` : cleanDigits);
+    const text = encodeURIComponent(getWhatsAppInviteMessage());
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
   const handleCreatePayment = async (e: React.FormEvent) => {
@@ -116,7 +174,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         course_id: selectedCourseId || undefined,
         amount_inr: paymentAmount,
       });
-      setGeneratedPaymentUrl(res.paymentUrl);
+      setGeneratedPaymentUrl(res.paymentUrl || res.paymentLink);
       onLeadUpdated();
       onSuccessToast('Payment link created and lead marked PAYMENT_REQUESTED!');
     } catch (err: any) {
@@ -133,6 +191,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   };
 
   const cleanPhone = lead.mobile_number.replace(/\D/g, '');
+
 
   return (
     <Modal
@@ -238,10 +297,11 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               setShowScheduleDemo(!showScheduleDemo);
               setShowCreatePayment(false);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
           >
-            <Calendar className="w-4 h-4" />
-            <span>Schedule Demo Session</span>
+            <Video className="w-4 h-4" />
+            <span>Schedule Google Meet Demo</span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
           </button>
 
           <button
@@ -250,39 +310,110 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               setShowCreatePayment(!showCreatePayment);
               setShowScheduleDemo(false);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition-colors cursor-pointer"
           >
             <CreditCard className="w-4 h-4 text-amber-400" />
             <span>Generate Payment Link</span>
           </button>
         </div>
 
+        {/* Scheduled Google Meet Result / Active Demo Invite Card */}
+        {scheduledMeetResult && (
+          <div className="p-4 bg-emerald-50/90 border border-emerald-300 rounded-2xl space-y-3 text-xs animate-in fade-in">
+            <div className="flex items-center justify-between gap-2 border-b border-emerald-200 pb-2">
+              <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
+                <Video className="w-4 h-4 text-emerald-700" />
+                <span>Google Meet Demo Session Scheduled Successfully!</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 text-[10px] font-bold">
+                GOOGLE MEET LIVE
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+              <div className="p-2.5 bg-white/80 rounded-xl border border-emerald-100">
+                <span className="text-[11px] text-slate-500 block">Student & Grade:</span>
+                <strong className="text-slate-900">{lead.student_name} ({lead.student_class})</strong>
+              </div>
+              <div className="p-2.5 bg-white/80 rounded-xl border border-emerald-100">
+                <span className="text-[11px] text-slate-500 block">Educator:</span>
+                <strong className="text-slate-900">{scheduledMeetResult.teacherName}</strong>
+              </div>
+              {scheduledMeetResult.meetingCode && (
+                <div className="p-2.5 bg-white/80 rounded-xl border border-emerald-100 col-span-1 sm:col-span-2">
+                  <span className="text-[11px] text-slate-500 block">Meeting Room Link:</span>
+                  <span className="font-mono font-bold text-emerald-800">{scheduledMeetResult.joinUrl}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <a
+                href={scheduledMeetResult.joinUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs"
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span>Enter Google Meet Room</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <button
+                type="button"
+                onClick={copyWhatsAppInvite}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy WhatsApp Invite</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={openWhatsAppDirect}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>Send to Parent via WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Inline Schedule Demo Form */}
         {showScheduleDemo && (
           <form
             onSubmit={handleScheduleDemo}
-            className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-4 text-xs animate-in fade-in"
+            className="p-5 bg-gradient-to-br from-emerald-50/90 to-emerald-100/40 border border-emerald-200 rounded-2xl space-y-4 text-xs animate-in fade-in"
           >
-            <h4 className="font-bold text-amber-950 text-sm">Schedule Evaluation Demo</h4>
+            <div className="border-b border-emerald-200/80 pb-2.5">
+              <h4 className="font-black text-emerald-950 text-sm flex items-center gap-1.5">
+                <Video className="w-4 h-4 text-emerald-700" />
+                <span>Schedule Google Meet Demo Evaluation</span>
+              </h4>
+              <p className="text-[11px] text-emerald-800/80 mt-0.5">
+                Parent preferred time: <strong>{lead.preferred_time || 'Flexible'}</strong>
+              </p>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div className="space-y-1">
-                <label className="font-bold text-slate-700 block">Date & Time</label>
+                <label className="font-bold text-slate-700 block">Date & Start Time</label>
                 <input
                   type="datetime-local"
                   required
                   value={demoDate}
                   onChange={(e) => setDemoDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-slate-700 block">Assigned Coach</label>
+                <label className="font-bold text-slate-700 block">Assigned Communication Coach</label>
                 <select
                   value={demoTeacherId}
                   onChange={(e) => setDemoTeacherId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 >
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -293,35 +424,81 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700 block">Google Meet / Zoom URL</label>
-              <input
-                type="url"
-                required
-                value={meetingLink}
-                onChange={(e) => setMeetingLink(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
-              />
+            <div className="space-y-2 p-3 bg-white/90 border border-emerald-200 rounded-xl">
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-slate-800 text-[11px] block">
+                  Google Meet Room Link (Real Meeting URL)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => window.open('https://meet.google.com/new', '_blank')}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-md border border-emerald-200 cursor-pointer transition-colors"
+                  title="Opens Google Meet in new tab to create an instant real meeting room"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>⚡ Create Real Google Meet (meet.google.com/new)</span>
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://meet.google.com/abc-defg-hij or paste real link"
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-slate-500 font-semibold">Quick Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => setMeetingLink('https://meet.google.com/upspeaq-demo')}
+                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-mono cursor-pointer"
+                >
+                  upspeaq-demo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMeetingLink('https://meet.google.com/upspeaq-trial-1')}
+                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-mono cursor-pointer"
+                >
+                  upspeaq-trial-1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMeetingLink('https://meet.google.com/upspeaq-trial-2')}
+                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-mono cursor-pointer"
+                >
+                  upspeaq-trial-2
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Tip: Click <strong>"⚡ Create Real Google Meet"</strong> to generate a unique room code directly on Google, then paste the URL above.
+              </p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-2 border-t border-emerald-200/80">
               <button
                 type="button"
                 onClick={() => setShowScheduleDemo(false)}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700"
+                className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={schedulingDemo}
-                className="px-4 py-1.5 rounded-lg bg-amber-600 text-white font-bold"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold transition-colors cursor-pointer"
               >
-                {schedulingDemo ? 'Scheduling...' : 'Save & Confirm Demo'}
+                <Video className="w-4 h-4" />
+                <span>{schedulingDemo ? 'Provisioning Google Meet Room...' : 'Confirm & Schedule Google Meet Demo'}</span>
               </button>
             </div>
           </form>
         )}
+
 
         {/* Inline Create Payment Link Form */}
         {showCreatePayment && (

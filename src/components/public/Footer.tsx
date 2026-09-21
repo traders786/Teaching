@@ -1,13 +1,14 @@
 import React from 'react';
 import { BrandingConfig } from '../../types';
 import { ArrowRight, Phone, Mail, MessageCircle, ShieldCheck } from 'lucide-react';
+import { Logo } from '../ui/Logo';
 
 interface FooterProps {
   branding: BrandingConfig;
   onOpenDemoModal: () => void;
   onNavigateToAdmin: () => void;
-  onOpenLegalModal: (type: 'PRIVACY' | 'TERMS') => void;
-  onNavigatePage?: (page: 'home' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq') => void;
+  onOpenLegalModal?: (type: 'PRIVACY' | 'TERMS') => void;
+  onNavigatePage?: (page: 'home' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq' | 'terms' | 'privacy') => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -17,12 +18,16 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenLegalModal,
   onNavigatePage,
 }) => {
-  const handlePageClick = (page: 'home' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq') => {
+  const handlePageClick = (page: 'home' | 'about' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq' | 'terms' | 'privacy') => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (onNavigatePage) {
-      onNavigatePage(page);
+      onNavigatePage(page as any);
     }
   };
+
+  const rawWhatsapp = (branding?.supportWhatsapp || '7004132088').replace(/\D/g, '');
+  const cleanWhatsapp = rawWhatsapp.startsWith('91') ? rawWhatsapp : (rawWhatsapp ? `91${rawWhatsapp}` : '917004132088');
+
   return (
     <div>
       {/* High-Conversion Final CTA */}
@@ -36,7 +41,7 @@ export const Footer: React.FC<FooterProps> = ({
               Give Your Child the Confidence to Speak in Any Room.
             </h2>
             <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
-              Every child has thoughts worth sharing. Join our intimate {branding.classBatchTargetSize}-student live
+              Every child has thoughts worth sharing. Join our intimate small-group live
               batches and watch them transform into articulate, poised, and courageous communicators.
             </p>
 
@@ -51,7 +56,7 @@ export const Footer: React.FC<FooterProps> = ({
               </button>
 
               <a
-                href={`https://wa.me/${branding.supportWhatsapp.replace(/[^\d]/g, '')}?text=Hi,%20I%20am%20interested%20in%20the%20communication%20classes%20for%20my%20child.`}
+                href={`https://wa.me/${cleanWhatsapp}?text=Hi,%20I%20am%20interested%20in%20the%20communication%20classes%20for%20my%20child.`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm border border-slate-700 transition-colors"
@@ -63,7 +68,7 @@ export const Footer: React.FC<FooterProps> = ({
 
             <div className="pt-2 flex items-center gap-2 text-xs text-slate-400">
               <ShieldCheck className="w-4 h-4 text-amber-400" />
-              <span>Free 45-minute demo • Intimate 8-student batches • Qualified educators</span>
+              <span>Free 45-minute demo • Intimate small-group batches • Qualified educators</span>
             </div>
           </div>
         </div>
@@ -75,14 +80,11 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
             {/* Column 1: Brand */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 font-black text-lg flex items-center justify-center">
-                  SI
-                </div>
-                <span className="text-lg font-bold text-white tracking-tight">{branding.brandName}</span>
+              <div className="flex items-center">
+                <Logo theme="dark" size="md" />
               </div>
               <p className="text-slate-400 leading-normal">
-                An Indian education and communication skills platform empowering school students from Class 4 to 12
+                An Indian education and communication skills platform empowering school students from UKG to Class 10
                 with live, small-group speaking and confidence mentorship.
               </p>
               <div className="text-[11px] text-slate-500 italic">
@@ -96,18 +98,18 @@ export const Footer: React.FC<FooterProps> = ({
               <ul className="space-y-2">
                 <li>
                   <button
-                    onClick={() => handlePageClick('curriculum')}
+                    onClick={() => handlePageClick('about')}
                     className="hover:text-amber-400 transition-colors cursor-pointer text-left"
                   >
-                    Curriculum & Skills Breakdown
+                    About Us & Story
                   </button>
                 </li>
                 <li>
                   <button
-                    onClick={() => handlePageClick('batches')}
+                    onClick={() => handlePageClick('curriculum')}
                     className="hover:text-amber-400 transition-colors cursor-pointer text-left"
                   >
-                    The 8-Student Batch Model
+                    Curriculum & Skills Breakdown
                   </button>
                 </li>
                 <li>
@@ -169,7 +171,7 @@ export const Footer: React.FC<FooterProps> = ({
               <ul className="space-y-2">
                 <li>
                   <button
-                    onClick={() => onOpenLegalModal('PRIVACY')}
+                    onClick={() => handlePageClick('privacy')}
                     className="hover:text-white transition-colors cursor-pointer text-left"
                   >
                     Privacy Policy & Minor Safety
@@ -177,7 +179,7 @@ export const Footer: React.FC<FooterProps> = ({
                 </li>
                 <li>
                   <button
-                    onClick={() => onOpenLegalModal('TERMS')}
+                    onClick={() => handlePageClick('terms')}
                     className="hover:text-white transition-colors cursor-pointer text-left"
                   >
                     Terms & Conditions

@@ -115,7 +115,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onSuccessToast, onEr
 
         <div className="text-xs text-slate-500 flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-600" />
-          <span>Every verified payment triggers auto-enrollment into an 8-student batch.</span>
+          <span>Every verified payment triggers auto-enrollment into an active small-group batch.</span>
         </div>
       </div>
 

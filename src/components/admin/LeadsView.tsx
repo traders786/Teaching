@@ -13,7 +13,9 @@ import {
   CreditCard,
   ChevronRight,
   Sparkles,
+  Video,
 } from 'lucide-react';
+
 import { Modal } from '../ui/Modal';
 
 interface LeadsViewProps {
@@ -262,6 +264,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => onOpenLeadDetail(lead)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold text-[11px] transition-colors cursor-pointer"
+                          title="Schedule Google Meet Evaluation or View Dossier"
+                        >
+                          <Video className="w-3 h-3 text-emerald-700" />
+                          <span>Meet Demo</span>
+                        </button>
+
                         <a
                           href={`https://wa.me/91${lead.mobile_number.replace(/\D/g, '')}`}
                           target="_blank"
@@ -271,18 +282,13 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                         >
                           <MessageCircle className="w-4 h-4" />
                         </a>
-                        <button
-                          onClick={() => onOpenLeadDetail(lead)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 font-semibold text-[11px] transition-colors"
-                        >
-                          Manage
-                        </button>
                       </div>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
+
           </table>
         </div>
       </div>

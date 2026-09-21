@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Modal } from '../ui/Modal';
-import { api } from '../../lib/api';
+import { api, setStoredToken } from '../../lib/api';
 import { BrandingConfig } from '../../types';
-import { ArrowRight, CheckCircle2, AlertCircle, Sparkles, User, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, AlertCircle, Sparkles, User, ShieldCheck, Zap } from 'lucide-react';
 
 interface BookDemoModalProps {
   isOpen: boolean;
   onClose: () => void;
   branding: BrandingConfig;
   onSuccessToast: (msg: string) => void;
+  onDemoBookedSuccess?: (user: any, token: string) => void;
 }
 
 export const BookDemoModal: React.FC<BookDemoModalProps> = ({
@@ -17,6 +18,7 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
   onClose,
   branding,
   onSuccessToast,
+  onDemoBookedSuccess,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
@@ -25,6 +27,7 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
     reference: string;
     studentName: string;
   } | null>(null);
+  const [authPayload, setAuthPayload] = useState<{ user: any; token: string } | null>(null);
 
   // Form Fields
   const [studentName, setStudentName] = useState('');
@@ -46,6 +49,7 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
     setLoading(false);
     setError(null);
     setBookingResult(null);
+    setAuthPayload(null);
     setStudentName('');
     setStudentClass('Class 6');
     setStudentAge('11');
@@ -58,6 +62,17 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
     setNotes('');
     setConsent(true);
   };
+
+  useEffect(() => {
+    if (bookingResult && authPayload && onDemoBookedSuccess) {
+      const timer = setTimeout(() => {
+        onDemoBookedSuccess(authPayload.user, authPayload.token);
+        resetForm();
+        onClose();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [bookingResult, authPayload]);
 
   const handleNextStep = () => {
     setError(null);
@@ -138,12 +153,17 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
         origin: { y: 0.6 },
       });
 
+      if (res.token && res.user) {
+        setStoredToken(res.token);
+        setAuthPayload({ user: res.user, token: res.token });
+      }
+
       setBookingResult({
         reference: res.bookingReference,
         studentName: res.studentName,
       });
 
-      onSuccessToast('Demo session booked successfully!');
+      onSuccessToast('Demo session booked successfully! Redirecting to student dashboard...');
     } catch (err: any) {
       setError(err.message || 'Unable to book demo. Please check your information and try again.');
     } finally {
@@ -161,7 +181,7 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
       title={bookingResult ? 'Demo Scheduled!' : 'Book a Free Interactive Demo'}
       subtitle={
         bookingResult
-          ? 'Confirmation for student evaluation'
+          ? 'Instant student access generated • Redirecting in 3s'
           : `Step ${step} of 3 • 45-min live micro-session with expert coach`
       }
       maxWidth="lg"
@@ -176,7 +196,7 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
           <div className="space-y-2 text-center">
             <h3 className="text-2xl font-bold text-slate-900">Thank You, {parentName}!</h3>
             <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-              We have received the demo session request for{' '}
+              We have scheduled the live demo session for{' '}
               <strong className="text-slate-900">{bookingResult.studentName}</strong>.
             </p>
           </div>
@@ -197,24 +217,41 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
           </div>
 
           <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 text-left space-y-1">
-            <strong className="block font-bold">What happens next?</strong>
+            <strong className="block font-bold">What's ready in your portal?</strong>
             <p>
-              Our academic counsellor will connect with you on WhatsApp/Call within a few hours to confirm the exact
-              meeting link and answer any questions you have before the class.
+              Your demo schedule, assigned coach, Google Meet classroom link, and full course catalog are now ready in your Student Portal.
             </p>
           </div>
 
-          <button
-            id="btn_demo_success_done"
-            type="button"
-            onClick={() => {
-              resetForm();
-              onClose();
-            }}
-            className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition-colors cursor-pointer"
-          >
-            Back to Website
-          </button>
+          <div className="space-y-2.5 pt-2">
+            <button
+              id="btn_demo_enter_dashboard"
+              type="button"
+              onClick={() => {
+                if (authPayload && onDemoBookedSuccess) {
+                  onDemoBookedSuccess(authPayload.user, authPayload.token);
+                }
+                resetForm();
+                onClose();
+              }}
+              className="w-full py-3.5 rounded-xl bg-[#F27C00] hover:bg-orange-600 text-white font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>🚀 ENTER STUDENT DASHBOARD (VIEW DEMO & COURSES)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <button
+              id="btn_demo_success_done"
+              type="button"
+              onClick={() => {
+                resetForm();
+                onClose();
+              }}
+              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+            >
+              Back to Website
+            </button>
+          </div>
         </div>
       ) : (
         /* Multi-Step Form */
@@ -407,8 +444,8 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({
                   onChange={(e) => setInterestArea(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm text-slate-900 bg-white"
                 >
-                  <option value="3-Month Flagship (₹4,999 Total) - 8-Student Batch">3-Month Flagship Cohort (₹4,999 Total) — 8-Student Batch (Free Demo)</option>
-                  <option value="1-Month Starter (₹1,999/mo) - 8-Student Batch">1-Month Starter Cohort (₹1,999/mo) — 8-Student Batch (Free Demo)</option>
+                  <option value="3-Month Flagship (₹4,999 Total) - Small-Group Batch">3-Month Flagship Cohort (₹4,999 Total) — Small-Group Batch (Free Demo)</option>
+                  <option value="1-Month Starter (₹1,999/mo) - Small-Group Batch">1-Month Starter Cohort (₹1,999/mo) — Small-Group Batch (Free Demo)</option>
                   <option value="1-on-1 Individual Mentorship (₹5,000/mo) - Private Classes">1-on-1 Individual Mentorship (₹5,000/mo) — Private Classes (Free Demo)</option>
                   <option value="Confidence Building & Fluency (Recommend in Demo)">General Evaluation / Recommend Program in Free Demo</option>
                 </select>

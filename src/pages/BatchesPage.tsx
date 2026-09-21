@@ -28,23 +28,23 @@ export const BatchesPage: React.FC<BatchesPageProps> = ({ branding, onOpenDemoMo
           <div className="max-w-3xl space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold">
               <Users className="w-3.5 h-3.5" />
-              <span>Strict Batch Cap Policy</span>
+              <span>Small-Batch Advantage</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-              Why We Strictly Cap Every Batch at 8 Students
+              Why We Strictly Keep Every Batch Small
             </h1>
             <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
               Public speaking is a motor skill, not a spectator sport. You cannot learn to swim by watching someone else,
-              and you cannot conquer stage fear while sitting on mute with 35 other children.
+              and you cannot conquer stage fear while sitting on mute in a crowded classroom.
             </p>
             <div className="pt-2 flex flex-wrap items-center gap-6 text-xs text-slate-400">
               <span className="flex items-center gap-1.5">
                 <Target className="w-4 h-4 text-amber-400" />
-                Target Size: {branding.classBatchTargetSize} Learners
+                Intimate Small Groups
               </span>
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-400" />
-                Hard System Ceiling: {branding.classBatchMaxSize} Max
+                Zero Large Crowd Pressure
               </span>
               <span className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-amber-400" />
@@ -111,12 +111,12 @@ export const BatchesPage: React.FC<BatchesPageProps> = ({ branding, onOpenDemoMo
               </div>
             </div>
 
-            {/* The Speak India Model */}
+            {/* The upspeaq Model */}
             <div className="p-6 sm:p-8 rounded-2xl bg-amber-50/50 border-2 border-amber-500/70 shadow-xs space-y-6">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-800">Speak India Model</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-800">upspeaq Model</span>
                 <span className="px-2.5 py-1 rounded-full bg-amber-600 text-white text-xs font-bold">
-                  Strictly 8 Students
+                  Small-Group Batch
                 </span>
               </div>
 
@@ -130,7 +130,7 @@ export const BatchesPage: React.FC<BatchesPageProps> = ({ branding, onOpenDemoMo
                 <div className="flex items-start gap-3 text-xs sm:text-sm text-slate-800">
                   <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Safe intimate circle:</strong> 8 peers form a supportive, encouraging cohort where making a stumble is celebrated as progress.
+                    <strong>Safe intimate circle:</strong> A small group of peers forms a supportive, encouraging cohort where making a stumble is celebrated as progress.
                   </span>
                 </div>
                 <div className="flex items-start gap-3 text-xs sm:text-sm text-slate-800">
@@ -155,11 +155,11 @@ export const BatchesPage: React.FC<BatchesPageProps> = ({ branding, onOpenDemoMo
           </div>
         </div>
 
-        {/* 3 Pillars of the 8-Student Cohort */}
+        {/* 3 Pillars of the Small-Group Cohort */}
         <div className="space-y-6">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <h3 className="text-2xl sm:text-3xl font-black text-slate-900">
-              How the 8-Student Model Transforms Your Child
+              How the Small-Batch Model Transforms Your Child
             </h3>
             <p className="text-xs sm:text-sm text-slate-600">
               Designed according to developmental speech psychology for children aged 9 to 18.
@@ -184,7 +184,7 @@ export const BatchesPage: React.FC<BatchesPageProps> = ({ branding, onOpenDemoMo
               </div>
               <h4 className="text-base font-bold text-slate-900">Continuous Assessment</h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Because our teachers only manage 8 minds, they can accurately score each student on 6 speech
+                Because our educators coach small groups, they can accurately score each student on 6 speech
                 rubrics every week and text detailed personalized observations to parents.
               </p>
             </div>

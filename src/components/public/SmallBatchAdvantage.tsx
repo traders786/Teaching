@@ -11,7 +11,7 @@ export const SmallBatchAdvantage: React.FC<{ branding: BrandingConfig }> = ({ br
             The Scientific Advantage
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Why We Cap Batches at Strictly {branding.classBatchTargetSize} Students
+            Why We Strictly Keep Every Batch Small
           </h2>
           <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
             Public speaking cannot be learned by sitting passively in a crowd of 30 or 40 children watching a teacher
@@ -58,14 +58,14 @@ export const SmallBatchAdvantage: React.FC<{ branding: BrandingConfig }> = ({ br
             </ul>
           </div>
 
-          {/* Speak India 8-Student Micro Batch */}
+          {/* upspeaq Small-Group Batch */}
           <div className="p-8 rounded-2xl bg-slate-900 text-white shadow-xl space-y-6 relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
                 <h3 className="text-xl font-bold text-amber-400">
-                  {branding.brandName} Micro-Batch ({branding.classBatchTargetSize} Learners)
+                  {branding.brandName} Small-Group Cohort
                 </h3>
-                <p className="text-xs text-slate-400">Target 8 students (Absolute cap: {branding.classBatchMaxSize})</p>
+                <p className="text-xs text-slate-400">Intimate cohort with guaranteed active speaking time</p>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
                 High-Engagement
@@ -102,8 +102,8 @@ export const SmallBatchAdvantage: React.FC<{ branding: BrandingConfig }> = ({ br
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
           <div className="p-4 rounded-xl bg-white border border-stone-200">
             <Users className="w-5 h-5 text-amber-700 mb-2" />
-            <div className="text-xl font-extrabold text-slate-900">8 Students</div>
-            <div className="text-xs text-slate-500">Target batch capacity</div>
+            <div className="text-xl font-extrabold text-slate-900">Small Groups</div>
+            <div className="text-xs text-slate-500">Intimate batch atmosphere</div>
           </div>
           <div className="p-4 rounded-xl bg-white border border-stone-200">
             <Clock className="w-5 h-5 text-amber-700 mb-2" />

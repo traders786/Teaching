@@ -19,7 +19,7 @@ export const HowItWorks: React.FC<{ onOpenDemoModal: () => void }> = ({ onOpenDe
     {
       num: '3',
       icon: <Users2 className="w-5 h-5 text-amber-700" />,
-      title: 'Join an 8-Student Batch',
+      title: 'Join a Small-Group Batch',
       description:
         'Placed with peers of matching grade (Junior: Class 4-7 or Senior: Class 8-12) for healthy engagement.',
     },
