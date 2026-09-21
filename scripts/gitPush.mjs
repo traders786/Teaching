@@ -54,6 +54,8 @@ async function main() {
 
   console.log('Committed SHA:', sha);
 
+  const token = process.argv[2] || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+
   // Try pushing
   console.log('Attempting push to origin main...');
   try {
@@ -64,16 +66,19 @@ async function main() {
       remote: 'origin',
       ref: 'main',
       onAuth: () => {
-        console.log('Auth requested');
         return {
-          username: process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '',
+          username: token,
           password: '',
         };
       },
     });
-    console.log('Push result:', pushResult);
+    console.log('Successfully pushed to GitHub! Push result:', pushResult);
   } catch (err) {
     console.error('Push error:', err.message);
+    if (!token) {
+      console.log('\nTIP: Provide your GitHub Personal Access Token (classic or fine-grained) with repo permissions:');
+      console.log('node scripts/gitPush.mjs <YOUR_GITHUB_TOKEN>');
+    }
   }
 }
 
