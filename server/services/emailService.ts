@@ -43,11 +43,11 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'upspeaq <onboarding@resend.dev>';
 const EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || 'upspeaqofficial@gmail.com';
 const GMAIL_USER = process.env.GMAIL_USER || process.env.EMAIL_USER || 'upspeaqofficial@gmail.com';
-const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS || '';
+const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS || 'twhqjpehtuhqpvfs';
 
 function getGmailTransporter() {
   const user = process.env.GMAIL_USER || process.env.EMAIL_USER || 'upspeaqofficial@gmail.com';
-  const pass = (process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS || '').trim().replace(/\s+/g, '');
+  const pass = (process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS || 'twhqjpehtuhqpvfs').trim().replace(/\s+/g, '');
   if (!pass) return null;
   return nodemailer.createTransport({
     service: 'gmail',

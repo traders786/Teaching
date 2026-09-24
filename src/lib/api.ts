@@ -531,20 +531,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   const baseUrl = getApiBaseUrl();
-  const isStaticEnvironment =
+  const isGitHubPages =
     typeof window !== 'undefined' &&
-    (window.location.hostname.includes('github.io') ||
-      window.location.protocol === 'file:' ||
-      window.location.hostname.includes('pages.dev') ||
-      !window.location.port ||
-      window.location.port === '80' ||
-      window.location.port === '443');
+    (window.location.hostname.includes('github.io') || window.location.protocol === 'file:');
 
   // If a remote Vercel backend URL is configured, use it directly even on GitHub Pages!
   const targetUrl = baseUrl ? `${baseUrl}${endpoint}` : endpoint;
 
-  // Only fallback to local simulation if on static hosting AND no remote backend URL is provided
-  if (!baseUrl && isStaticEnvironment && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+  // Only fallback to local simulation if strictly on GitHub Pages / file: AND no remote backend URL is provided
+  if (!baseUrl && isGitHubPages) {
     await new Promise((resolve) => setTimeout(resolve, 250)); // natural micro-delay
     return handleStaticClientFallback<T>(endpoint, options);
   }
@@ -556,7 +551,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     });
 
     if (!response.ok) {
-      if (isStaticEnvironment && (response.status === 404 || response.status === 405)) {
+      if (isGitHubPages && (response.status === 404 || response.status === 405)) {
         return handleStaticClientFallback<T>(endpoint, options);
       }
       const data = await response.json().catch(() => ({}));
@@ -567,7 +562,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const data = await response.json().catch(() => ({}));
     return data as T;
   } catch (err: any) {
-    if (isStaticEnvironment && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+    if (isGitHubPages) {
       return handleStaticClientFallback<T>(endpoint, options);
     }
     throw err;
