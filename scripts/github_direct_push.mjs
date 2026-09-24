@@ -16,6 +16,7 @@ const ignored = [
   '.env.local',
   'coverage',
   '.DS_Store',
+  'scratch',
 ];
 
 function getAllFiles(dir, baseDir = dir) {
@@ -26,6 +27,11 @@ function getAllFiles(dir, baseDir = dir) {
     const relPath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
     
     if (ignored.some(ig => relPath === ig || relPath.startsWith(ig + '/'))) {
+      continue;
+    }
+    
+    // Skip static binary assets that are already in base_tree
+    if (relPath.endsWith('.pdf') || relPath.endsWith('.jpg') || relPath.endsWith('.png') || relPath.endsWith('.sqlite')) {
       continue;
     }
     
@@ -58,76 +64,67 @@ async function githubApi(endpoint, options = {}) {
   return data;
 }
 
+async function uploadSingleBlob({ fullPath, relPath }) {
+  const content = fs.readFileSync(fullPath, 'utf8');
+  const blobData = await githubApi('/git/blobs', {
+    method: 'POST',
+    body: JSON.stringify({
+      content,
+      encoding: 'utf-8',
+    }),
+  });
+  return {
+    path: relPath,
+    mode: '100644',
+    type: 'blob',
+    sha: blobData.sha,
+  };
+}
+
 async function main() {
-  console.log(`🚀 Starting GitHub direct commit upload for ${owner}/${repo} on branch '${branch}'...`);
+  if (!token) {
+    console.error('Please pass GitHub PAT token: node scripts/github_direct_push.mjs <token>');
+    process.exit(1);
+  }
+
+  console.log(`🚀 Starting parallel delta push for ${owner}/${repo} on branch '${branch}'...`);
   
   // 1. Get latest commit on main
-  console.log('1. Fetching latest commit on main...');
   const refData = await githubApi(`/git/refs/heads/${branch}`);
   const parentCommitSha = refData.object.sha;
   console.log(`Latest commit SHA on main: ${parentCommitSha}`);
 
-  // 2. Collect all local project files
+  // 2. Collect local code & config files
   const files = getAllFiles(process.cwd());
-  console.log(`2. Found ${files.length} files to upload (including all grade PDFs)...`);
+  console.log(`Found ${files.length} code & config files to sync...`);
 
-  // 3. Upload blobs in batches
+  // 3. Upload blobs in parallel chunks of 15
   const treeItems = [];
-  let uploadedCount = 0;
-
-  for (const { fullPath, relPath } of files) {
-    const isBinary = relPath.endsWith('.pdf') || relPath.endsWith('.png') || relPath.endsWith('.jpg') || relPath.endsWith('.webp') || relPath.endsWith('.ico') || relPath.endsWith('.sqlite');
-    let blobData;
-
-    if (isBinary) {
-      const buffer = fs.readFileSync(fullPath);
-      blobData = await githubApi('/git/blobs', {
-        method: 'POST',
-        body: JSON.stringify({
-          content: buffer.toString('base64'),
-          encoding: 'base64',
-        }),
-      });
-    } else {
-      const content = fs.readFileSync(fullPath, 'utf8');
-      blobData = await githubApi('/git/blobs', {
-        method: 'POST',
-        body: JSON.stringify({
-          content,
-          encoding: 'utf-8',
-        }),
-      });
-    }
-
-    treeItems.push({
-      path: relPath,
-      mode: '100644',
-      type: 'blob',
-      sha: blobData.sha,
-    });
-
-    uploadedCount++;
-    if (uploadedCount % 15 === 0 || uploadedCount === files.length) {
-      console.log(`Uploaded ${uploadedCount}/${files.length} blobs...`);
-    }
+  const chunkSize = 15;
+  for (let i = 0; i < files.length; i += chunkSize) {
+    const chunk = files.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(chunk.map(uploadSingleBlob));
+    treeItems.push(...chunkResults);
+    console.log(`Uploaded ${treeItems.length}/${files.length} files...`);
   }
 
-  // 4. Create new Git Tree
-  console.log('4. Creating new Git tree...');
+  // 4. Create new Git Tree with base_tree
+  console.log('Creating new Git tree with base_tree...');
   const treeData = await githubApi('/git/trees', {
     method: 'POST',
     body: JSON.stringify({
+      base_tree: parentCommitSha,
       tree: treeItems,
     }),
   });
   console.log(`Created Tree SHA: ${treeData.sha}`);
 
   // 5. Create new Git Commit
-  console.log('5. Creating new commit on GitHub...');
+  console.log('Creating new commit on GitHub...');
   const commitData = await githubApi('/git/commits', {
     method: 'POST',
     body: JSON.stringify({
-      message: 'Update Grade Selector (UKG to 10th), Email-only OTP, delayed teacher meeting link & dynamic worksheets PDF',
+      message: 'Add Vercel serverless API with Node 22 engines, /tmp SQLite & Unenrolled Demo Dashboard',
       tree: treeData.sha,
       parents: [parentCommitSha],
     }),
@@ -135,7 +132,7 @@ async function main() {
   console.log(`Created Commit SHA: ${commitData.sha}`);
 
   // 6. Update main branch reference
-  console.log('6. Updating branch ref to point to new commit...');
+  console.log('Updating branch ref to point to new commit...');
   await githubApi(`/git/refs/heads/${branch}`, {
     method: 'PATCH',
     body: JSON.stringify({
@@ -144,9 +141,10 @@ async function main() {
     }),
   });
 
-  console.log(`\n🎉 SUCCESS! All files & curriculum PDFs are pushed to GitHub: https://github.com/${owner}/${repo}/commit/${commitData.sha}`);
+  console.log(`\n🎉 SUCCESS! Pushed to GitHub: https://github.com/${owner}/${repo}/commit/${commitData.sha}`);
 }
 
-main().catch(err => {
-  console.error('❌ Upload failed:', err.message);
+main().catch((err) => {
+  console.error('\n❌ Upload failed:', err.message);
+  process.exit(1);
 });
