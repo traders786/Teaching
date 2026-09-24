@@ -509,6 +509,15 @@ function handleStaticClientFallback<T>(endpoint: string, options: RequestInit = 
   return { success: true } as T;
 }
 
+// Remote Backend URL Config (e.g. Vercel backend URL)
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const custom = window.localStorage ? window.localStorage.getItem('upspeaq_api_url') : null;
+    if (custom) return custom.replace(/\/+$/, '');
+  }
+  return (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+};
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const headers = new Headers(options.headers || {});
@@ -521,6 +530,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  const baseUrl = getApiBaseUrl();
   const isStaticEnvironment =
     typeof window !== 'undefined' &&
     (window.location.hostname.includes('github.io') ||
@@ -530,14 +540,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       window.location.port === '80' ||
       window.location.port === '443');
 
-  // On GitHub Pages or static hosts where no Node.js backend exists, immediately use fallback
-  if (isStaticEnvironment && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-    await new Promise((resolve) => setTimeout(resolve, 250)); // natural micro-delay for realistic UI feedback
+  // If a remote Vercel backend URL is configured, use it directly even on GitHub Pages!
+  const targetUrl = baseUrl ? `${baseUrl}${endpoint}` : endpoint;
+
+  // Only fallback to local simulation if on static hosting AND no remote backend URL is provided
+  if (!baseUrl && isStaticEnvironment && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+    await new Promise((resolve) => setTimeout(resolve, 250)); // natural micro-delay
     return handleStaticClientFallback<T>(endpoint, options);
   }
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(targetUrl, {
       ...options,
       headers,
     });
@@ -726,16 +739,60 @@ export const api = {
   }) =>
     request<{
       success: boolean;
+      alreadyBooked?: boolean;
       leadId: string;
       demoId: string;
-      meetingLink: string;
+      studentName?: string;
+      studentClass?: string;
+      parentName?: string;
+      email?: string;
+      mobileNumber?: string;
+      meetingLink?: string | null;
       date: string;
       timeSlot: string;
       dateFormatted?: string;
+      message?: string;
+      teacher?: {
+        name: string;
+        photoUrl?: string;
+        bio?: string;
+        qualification?: string;
+        experience?: string;
+      } | null;
     }>('/api/leads/book-slot', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  getMyDemo: (params: { leadId?: string; email?: string; phone?: string }) => {
+    const query = new URLSearchParams();
+    if (params.leadId) query.append('leadId', params.leadId);
+    if (params.email) query.append('email', params.email);
+    if (params.phone) query.append('phone', params.phone);
+    return request<{
+      success: boolean;
+      demo: {
+        leadId: string;
+        studentName: string;
+        studentClass: string;
+        parentName: string;
+        email: string;
+        mobileNumber: string;
+        demoId: string;
+        date: string;
+        timeSlot: string;
+        status: string;
+        meetingLink?: string | null;
+        teacher?: {
+          name: string;
+          photoUrl?: string;
+          bio?: string;
+          qualification?: string;
+          experience?: string;
+        } | null;
+      };
+    }>(`/api/leads/my-demo?${query.toString()}`);
+  },
 
   submitSurvey: (payload: { leadId: string; goals: string[]; parentName?: string }) =>
     request<{ success: boolean; message: string }>('/api/leads/survey-response', {

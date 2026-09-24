@@ -39,6 +39,17 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
   app.use(cookieParser());
 
+  // CORS Middleware for GitHub Pages & Cloud Clients
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // API Health Check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', brand: 'upspeaq', time: new Date().toISOString() });

@@ -24,6 +24,7 @@ import { PricingPage } from './pages/PricingPage';
 import { FaqPage } from './pages/FaqPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { UnenrolledDemoDashboard } from './components/public/UnenrolledDemoDashboard';
 
 // Admin Components
 import { AdminLayout, AdminTab } from './components/admin/AdminLayout';
@@ -158,8 +159,11 @@ export default function App() {
       setCurrentView('LOGIN');
     } else {
       setCurrentView('PUBLIC');
-      if (pageParam && ['home', 'about', 'curriculum', 'batches', 'faculty', 'pricing', 'faq', 'terms', 'privacy'].includes(pageParam)) {
-        setPublicPage(pageParam);
+      const hash = window.location.hash || '';
+      if (pageParam && ['home', 'about', 'curriculum', 'batches', 'faculty', 'pricing', 'faq', 'terms', 'privacy', 'demo-portal'].includes(pageParam)) {
+        setPublicPage(pageParam as PublicPage);
+      } else if (path.includes('demo-portal') || path.includes('my-demo') || hash.includes('demo-portal')) {
+        setPublicPage('demo-portal');
       } else if (path.includes('about')) {
         setPublicPage('about');
       } else if (path.includes('terms')) {
@@ -653,6 +657,15 @@ export default function App() {
                 onNavigateTerms={() => navigateToPage('terms')}
               />
             )}
+
+            {publicPage === 'demo-portal' && (
+              <UnenrolledDemoDashboard
+                onNavigateHome={() => navigateToPage('home')}
+                onBookNewDemo={() => setIsDemoModalOpen(true)}
+                onSuccessToast={(msg) => addToast('success', msg)}
+                onErrorToast={(msg) => addToast('error', msg)}
+              />
+            )}
           </main>
 
           <Footer
@@ -669,8 +682,15 @@ export default function App() {
       <BookingFunnelModal
         isOpen={isDemoModalOpen}
         onClose={() => setIsDemoModalOpen(false)}
+        onNavigateToDemoPortal={(leadId) => {
+          navigateToPage('demo-portal');
+        }}
         onBookingComplete={(res) => {
-          addToast('success', `Demo slot confirmed for ${res.date} at ${res.timeSlot}! Confirmation email sent.`);
+          if (res.alreadyBooked) {
+            addToast('info', res.message || 'You already have an active demo booking. Welcome to your demo portal!');
+          } else {
+            addToast('success', `Demo slot confirmed for ${res.date} at ${res.timeSlot}! Confirmation email sent.`);
+          }
         }}
       />
 

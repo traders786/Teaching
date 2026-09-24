@@ -31,11 +31,46 @@ export interface BookingLeadData {
   whatsappUpdates?: boolean;
 }
 
+// Resolve Curriculum & Worksheets PDF by Grade
+export const getCurriculumPdfUrl = (grade?: string) => {
+  const cleanGrade = (grade || '').toLowerCase();
+  if (cleanGrade.includes('10')) {
+    return '/curriculum/upspeaq-class-10-curriculum.pdf';
+  }
+  if (cleanGrade.includes('9')) {
+    return '/curriculum/upspeaq-class-9-curriculum.pdf';
+  }
+  if (cleanGrade.includes('8')) {
+    return '/curriculum/upspeaq-class-8-curriculum.pdf';
+  }
+  if (cleanGrade.includes('7')) {
+    return '/curriculum/upspeaq-class-7-curriculum.pdf';
+  }
+  if (cleanGrade.includes('6')) {
+    return '/curriculum/upspeaq-class-6-curriculum.pdf';
+  }
+  if (cleanGrade.includes('5')) {
+    return '/curriculum/upspeaq-class-5-curriculum.pdf';
+  }
+  if (cleanGrade.includes('4')) {
+    return '/curriculum/upspeaq-class-4-curriculum.pdf';
+  }
+  if (cleanGrade.includes('3')) {
+    return '/curriculum/upspeaq-class-3-curriculum.pdf';
+  }
+  if (cleanGrade.includes('2')) {
+    return '/curriculum/upspeaq-class-2-curriculum.pdf';
+  }
+  // Default to Class 1 for UKG / Class 1
+  return '/curriculum/upspeaq-class-1-curriculum.pdf';
+};
+
 interface BookingFunnelModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialData?: BookingLeadData | null;
   onBookingComplete?: (bookingInfo: any) => void;
+  onNavigateToDemoPortal?: (leadId: string) => void;
 }
 
 type FunnelStep = 'ENTER_DETAILS' | 'SLOT_SELECTION' | 'OTP_VERIFICATION' | 'THANK_YOU';
@@ -45,6 +80,7 @@ export const BookingFunnelModal: React.FC<BookingFunnelModalProps> = ({
   onClose,
   initialData,
   onBookingComplete,
+  onNavigateToDemoPortal,
 }) => {
   const [step, setStep] = useState<FunnelStep>('ENTER_DETAILS');
   const [formData, setFormData] = useState<BookingLeadData>({
@@ -296,6 +332,26 @@ export const BookingFunnelModal: React.FC<BookingFunnelModalProps> = ({
       });
 
       setBookingResult(bookingRes);
+
+      // Persist lead demo in localStorage for Unenrolled Demo Dashboard
+      try {
+        localStorage.setItem(
+          'upspeaq_demo_lead',
+          JSON.stringify({
+            leadId: bookingRes.leadId,
+            studentName: bookingRes.studentName || formData.studentName,
+            studentClass: bookingRes.studentClass || formData.studentClass,
+            parentName: bookingRes.parentName || formData.parentName,
+            email: bookingRes.email || formData.email,
+            mobileNumber: bookingRes.mobileNumber || formData.mobileNumber,
+            date: bookingRes.date || selectedDate,
+            timeSlot: bookingRes.timeSlot || selectedTimeSlot,
+            meetingLink: bookingRes.meetingLink || null,
+            teacher: bookingRes.teacher || null,
+          })
+        );
+      } catch (e) {}
+
       if (onBookingComplete) {
         onBookingComplete(bookingRes);
       }
@@ -353,40 +409,6 @@ export const BookingFunnelModal: React.FC<BookingFunnelModalProps> = ({
     );
     const location = encodeURIComponent(bookingResult?.meetingLink || 'Google Meet');
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
-  };
-
-  // Resolve Curriculum & Worksheets PDF by Grade
-  const getCurriculumPdfUrl = (grade?: string) => {
-    const cleanGrade = (grade || formData.studentClass || '').toLowerCase();
-    if (cleanGrade.includes('10')) {
-      return '/curriculum/upspeaq-class-10-curriculum.pdf';
-    }
-    if (cleanGrade.includes('9')) {
-      return '/curriculum/upspeaq-class-9-curriculum.pdf';
-    }
-    if (cleanGrade.includes('8')) {
-      return '/curriculum/upspeaq-class-8-curriculum.pdf';
-    }
-    if (cleanGrade.includes('7')) {
-      return '/curriculum/upspeaq-class-7-curriculum.pdf';
-    }
-    if (cleanGrade.includes('6')) {
-      return '/curriculum/upspeaq-class-6-curriculum.pdf';
-    }
-    if (cleanGrade.includes('5')) {
-      return '/curriculum/upspeaq-class-5-curriculum.pdf';
-    }
-    if (cleanGrade.includes('4')) {
-      return '/curriculum/upspeaq-class-4-curriculum.pdf';
-    }
-    if (cleanGrade.includes('3')) {
-      return '/curriculum/upspeaq-class-3-curriculum.pdf';
-    }
-    if (cleanGrade.includes('2')) {
-      return '/curriculum/upspeaq-class-2-curriculum.pdf';
-    }
-    // Default to Class 1 for UKG / Class 1
-    return '/curriculum/upspeaq-class-1-curriculum.pdf';
   };
 
   const surveyOptions = [
@@ -866,8 +888,25 @@ export const BookingFunnelModal: React.FC<BookingFunnelModalProps> = ({
                 <span>{selectedTimeSlot}</span>
               </div>
 
-              {/* Action Buttons: Add to Calendar + Download Grade Curriculum PDF */}
+              {/* Action Buttons: Add to Calendar + Download Grade Curriculum PDF + Open Demo Dashboard */}
               <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onNavigateToDemoPortal && bookingResult?.leadId) {
+                      onNavigateToDemoPortal(bookingResult.leadId);
+                    } else {
+                      window.location.hash = 'demo-portal';
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-amber-300 text-xs font-black font-heading uppercase tracking-wider shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer border border-amber-400/50"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Open Demo Prep Portal</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+                </button>
+
                 <a
                   href={getGoogleCalendarUrl()}
                   target="_blank"
@@ -875,7 +914,7 @@ export const BookingFunnelModal: React.FC<BookingFunnelModalProps> = ({
                   className="px-5 py-2.5 rounded-full bg-[#EA580C] hover:bg-[#C2410C] text-white text-xs font-black font-heading uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <Calendar className="w-4 h-4" />
-                  <span>Add to Google Calendar</span>
+                  <span>Add to Calendar</span>
                 </a>
 
                 <a
@@ -887,7 +926,7 @@ export const BookingFunnelModal: React.FC<BookingFunnelModalProps> = ({
                   title={`Download ${formData.studentClass || 'Grade'} Curriculum Guide & Complimentary Worksheets PDF`}
                 >
                   <FileText className="w-4 h-4 text-emerald-100" />
-                  <span>Download {formData.studentClass || 'Grade'} Worksheets (PDF)</span>
+                  <span>Download Worksheets (PDF)</span>
                 </a>
               </div>
 

@@ -3,7 +3,7 @@ import { BrandingConfig } from '../../types';
 import { Menu, X, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { Logo } from '../ui/Logo';
 
-export type PublicPage = 'home' | 'about' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq' | 'terms' | 'privacy';
+export type PublicPage = 'home' | 'about' | 'curriculum' | 'batches' | 'faculty' | 'pricing' | 'faq' | 'terms' | 'privacy' | 'demo-portal';
 
 interface HeaderProps {
   branding: BrandingConfig;
@@ -30,12 +30,15 @@ export const Header: React.FC<HeaderProps> = ({
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
+  const hasDemoBooked = typeof window !== 'undefined' && Boolean(localStorage.getItem('upspeaq_demo_lead'));
+
   const navItems: { id: PublicPage; label: string }[] = [
     { id: 'home', label: 'Home' },
     { id: 'about', label: 'About Us' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'faculty', label: 'Faculty' },
     { id: 'pricing', label: 'Program & Fees' },
+    ...(hasDemoBooked ? [{ id: 'demo-portal' as PublicPage, label: '🌟 My Demo Class' }] : []),
   ];
 
   return (

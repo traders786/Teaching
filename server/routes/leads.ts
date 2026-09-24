@@ -245,6 +245,78 @@ leadsRouter.post('/verify-otp', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/leads/my-demo (Lookup existing demo booking for an unenrolled student)
+leadsRouter.get('/my-demo', (req: Request, res: Response) => {
+  try {
+    const { email, phone, leadId } = req.query;
+    if (!email && !phone && !leadId) {
+      return res.status(400).json({ error: 'Please provide email, phone or leadId to lookup demo.' });
+    }
+
+    let query = `
+      SELECT l.id as lead_id, l.student_name, l.student_class, l.parent_name, l.email, l.mobile_number, l.created_at,
+             da.id as attendee_id, da.demo_id,
+             ds.date as demo_date, ds.start_time as demo_start_time, ds.end_time as demo_end_time,
+             ds.meeting_link, ds.teacher_id, ds.status as demo_status,
+             t.name as teacher_name, t.photo_url as teacher_photo, t.biography as teacher_bio, t.qualification as teacher_qualification, t.experience as teacher_experience
+      FROM leads l
+      JOIN demo_attendees da ON da.lead_id = l.id
+      JOIN demo_sessions ds ON ds.id = da.demo_id
+      LEFT JOIN teachers t ON t.id = ds.teacher_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (leadId) {
+      query += ` AND l.id = ?`;
+      params.push(String(leadId));
+    } else if (email && phone) {
+      query += ` AND (lower(l.email) = ? OR l.mobile_number = ?)`;
+      params.push(String(email).trim().toLowerCase(), normalizePhone(String(phone).trim()));
+    } else if (email) {
+      query += ` AND lower(l.email) = ?`;
+      params.push(String(email).trim().toLowerCase());
+    } else if (phone) {
+      query += ` AND l.mobile_number = ?`;
+      params.push(normalizePhone(String(phone).trim()));
+    }
+
+    query += ` ORDER BY ds.date DESC, ds.start_time DESC LIMIT 1`;
+
+    const demo = db.prepare(query).get(...params) as any;
+    if (!demo) {
+      return res.status(404).json({ error: 'No active demo session found for this student.' });
+    }
+
+    return res.json({
+      success: true,
+      demo: {
+        leadId: demo.lead_id,
+        studentName: demo.student_name,
+        studentClass: demo.student_class,
+        parentName: demo.parent_name,
+        email: demo.email,
+        mobileNumber: demo.mobile_number,
+        demoId: demo.demo_id,
+        date: demo.demo_date,
+        timeSlot: demo.demo_start_time,
+        status: demo.demo_status,
+        meetingLink: demo.teacher_id ? demo.meeting_link : null,
+        teacher: demo.teacher_id ? {
+          name: demo.teacher_name,
+          photoUrl: demo.teacher_photo,
+          bio: demo.teacher_bio,
+          qualification: demo.teacher_qualification,
+          experience: demo.teacher_experience,
+        } : null,
+      },
+    });
+  } catch (error: any) {
+    console.error('My demo lookup error:', error);
+    return res.status(500).json({ error: 'Failed to lookup demo session.' });
+  }
+});
+
 // POST /api/leads/book-slot (Completes interactive slot booking + Google Meet + Resend Confirmation)
 leadsRouter.post('/book-slot', async (req: Request, res: Response) => {
   try {
@@ -282,6 +354,58 @@ leadsRouter.post('/book-slot', async (req: Request, res: Response) => {
     }
 
     const normalizedMobile = normalizePhone(mobileNumber.trim());
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 🛑 DE-DUPLICATION CHECK: If user already has an active upcoming demo scheduled, prevent duplicate record
+    const existingBooking = db.prepare(`
+      SELECT l.id as lead_id, l.student_name, l.student_class, l.parent_name, l.email, l.mobile_number,
+             da.id as attendee_id, da.demo_id,
+             ds.date as demo_date, ds.start_time as demo_start_time, ds.end_time as demo_end_time,
+             ds.meeting_link, ds.teacher_id, ds.status as demo_status,
+             t.name as teacher_name, t.photo_url as teacher_photo, t.biography as teacher_bio, t.qualification as teacher_qualification, t.experience as teacher_experience
+      FROM leads l
+      JOIN demo_attendees da ON da.lead_id = l.id
+      JOIN demo_sessions ds ON ds.id = da.demo_id
+      LEFT JOIN teachers t ON t.id = ds.teacher_id
+      WHERE (lower(l.email) = ? OR l.mobile_number = ?)
+        AND ds.status IN ('SCHEDULED', 'ASSIGNED', 'NEW')
+      ORDER BY ds.date DESC, ds.start_time DESC
+      LIMIT 1
+    `).get(normalizedEmail, normalizedMobile) as any;
+
+    if (existingBooking) {
+      const existingDateFormatted = new Date(existingBooking.demo_date).toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      return res.json({
+        success: true,
+        alreadyBooked: true,
+        leadId: existingBooking.lead_id,
+        demoId: existingBooking.demo_id,
+        studentName: existingBooking.student_name,
+        studentClass: existingBooking.student_class,
+        parentName: existingBooking.parent_name,
+        email: existingBooking.email,
+        mobileNumber: existingBooking.mobile_number,
+        date: existingBooking.demo_date,
+        timeSlot: existingBooking.demo_start_time,
+        dateFormatted: existingDateFormatted || existingBooking.demo_date,
+        meetingLink: existingBooking.teacher_id ? existingBooking.meeting_link : null,
+        teacher: existingBooking.teacher_id ? {
+          name: existingBooking.teacher_name,
+          photoUrl: existingBooking.teacher_photo,
+          bio: existingBooking.teacher_bio,
+          qualification: existingBooking.teacher_qualification,
+          experience: existingBooking.teacher_experience,
+        } : null,
+        message: `Welcome back! You already have a confirmed demo slot for ${existingBooking.student_name} on ${existingDateFormatted || existingBooking.demo_date} (${existingBooking.demo_start_time}).`,
+      });
+    }
+
     const leadId = 'lead_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
     // Parse start and end times from slot (e.g. "11:00 AM" or "6:00 PM")
