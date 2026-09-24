@@ -2,8 +2,18 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db/schema.js';
 import { verifyToken, signToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { createGoogleMeetSession } from '../services/googleMeet.js';
+import { sendOtpEmail, sendDemoReceivedEmail, sendTeacherAssignedEmail } from '../services/emailService.js';
 
 export const leadsRouter = Router();
+
+// In-Memory OTP store with TTL
+interface OtpEntry {
+  code: string;
+  email: string;
+  mobile: string;
+  expiresAt: number;
+}
+const otpMap = new Map<string, OtpEntry>();
 
 function normalizePhone(phone: string): string {
   let cleaned = phone.replace(/[^\d+]/g, '');
@@ -153,6 +163,321 @@ export async function autoSchedulePendingLeads() {
 setTimeout(() => {
   autoSchedulePendingLeads();
 }, 1000);
+
+// ==========================================
+// 🚀 BHANZU-STYLE LIVE BOOKING FUNNEL ROUTES
+// ==========================================
+
+// POST /api/leads/send-otp (Dispatches 4-digit code via Resend)
+leadsRouter.post('/send-otp', async (req: Request, res: Response) => {
+  try {
+    const { email, mobileNumber, studentName } = req.body;
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Valid email address is required to receive verification code.' });
+    }
+
+    // Generate random 4-digit OTP (e.g. 4829)
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const cleanMobile = mobileNumber ? normalizePhone(mobileNumber) : '';
+
+    // Store in OTP map with 10-minute validity
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    otpMap.set(email.toLowerCase().trim(), { code: otp, email: email.toLowerCase().trim(), mobile: cleanMobile, expiresAt });
+    if (cleanMobile) {
+      otpMap.set(cleanMobile, { code: otp, email: email.toLowerCase().trim(), mobile: cleanMobile, expiresAt });
+    }
+
+    // Dispatch live email via Gmail SMTP / Resend
+    await sendOtpEmail({
+      to: email.trim(),
+      otp,
+      studentName: studentName || 'Student',
+    });
+
+    return res.json({
+      success: true,
+      message: `Verification code sent to ${email}`,
+    });
+  } catch (error: any) {
+    console.error('Send OTP error:', error);
+    return res.status(500).json({ error: 'Failed to dispatch verification code.' });
+  }
+});
+
+// POST /api/leads/verify-otp
+leadsRouter.post('/verify-otp', async (req: Request, res: Response) => {
+  try {
+    const { email, mobileNumber, otp } = req.body;
+
+    if (!otp || otp.toString().length !== 4) {
+      return res.status(400).json({ error: 'Please enter a valid 4-digit verification code.' });
+    }
+
+    const emailKey = email ? email.toLowerCase().trim() : '';
+    const mobileKey = mobileNumber ? normalizePhone(mobileNumber) : '';
+
+    const entry = (emailKey && otpMap.get(emailKey)) || (mobileKey && otpMap.get(mobileKey));
+
+    if (!entry) {
+      return res.status(400).json({ error: 'Verification code expired or not found. Please request a new code.' });
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      otpMap.delete(emailKey);
+      if (mobileKey) otpMap.delete(mobileKey);
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+    }
+
+    if (entry.code !== otp.toString().trim()) {
+      return res.status(400).json({ error: 'Invalid verification code. Please check and try again.' });
+    }
+
+    // Verified successfully
+    return res.json({
+      success: true,
+      verified: true,
+      message: 'Mobile and email verified successfully!',
+    });
+  } catch (error: any) {
+    console.error('Verify OTP error:', error);
+    return res.status(500).json({ error: 'Verification check failed.' });
+  }
+});
+
+// POST /api/leads/book-slot (Completes interactive slot booking + Google Meet + Resend Confirmation)
+leadsRouter.post('/book-slot', async (req: Request, res: Response) => {
+  try {
+    const {
+      studentName,
+      studentClass,
+      parentName,
+      mobileNumber,
+      email,
+      hasLaptop,
+      understandsEnglish,
+      whatsappUpdates = true,
+      date,
+      timeSlot,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmContent,
+      utmTerm,
+      gclid,
+      fbclid,
+    } = req.body;
+
+    if (!studentName || !studentName.trim()) {
+      return res.status(400).json({ error: "Child's name is required." });
+    }
+    if (!mobileNumber || !mobileNumber.trim()) {
+      return res.status(400).json({ error: "Mobile number is required." });
+    }
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: "Valid email address is required." });
+    }
+    if (!date || !timeSlot) {
+      return res.status(400).json({ error: "Please choose your preferred date and time slot." });
+    }
+
+    const normalizedMobile = normalizePhone(mobileNumber.trim());
+    const leadId = 'lead_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+
+    // Parse start and end times from slot (e.g. "11:00 AM" or "6:00 PM")
+    let startTime = '11:00';
+    let endTime = '11:45';
+
+    const slotUpper = timeSlot.toUpperCase();
+    if (slotUpper.includes('PM')) {
+      const match = slotUpper.match(/(\d+):?(\d*)/);
+      if (match) {
+        let hour = parseInt(match[1], 10);
+        if (hour !== 12) hour += 12;
+        const min = match[2] ? match[2].padStart(2, '0') : '00';
+        startTime = `${hour.toString().padStart(2, '0')}:${min}`;
+        const endHour = hour;
+        const endMin = (parseInt(min, 10) + 45) % 60;
+        const calcEndHour = parseInt(min, 10) + 45 >= 60 ? endHour + 1 : endHour;
+        endTime = `${calcEndHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+      }
+    } else if (slotUpper.includes('AM')) {
+      const match = slotUpper.match(/(\d+):?(\d*)/);
+      if (match) {
+        let hour = parseInt(match[1], 10);
+        if (hour === 12) hour = 0;
+        const min = match[2] ? match[2].padStart(2, '0') : '00';
+        startTime = `${hour.toString().padStart(2, '0')}:${min}`;
+        const endHour = hour;
+        const endMin = (parseInt(min, 10) + 45) % 60;
+        const calcEndHour = parseInt(min, 10) + 45 >= 60 ? endHour + 1 : endHour;
+        endTime = `${calcEndHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+      }
+    }
+
+    // Determine lead source from UTM
+    let leadSource = 'DIRECT';
+    if (fbclid || (utmSource && utmSource.toLowerCase().includes('meta')) || (utmSource && utmSource.toLowerCase().includes('facebook')) || (utmSource && utmSource.toLowerCase().includes('instagram'))) {
+      leadSource = 'META_ADS';
+    } else if (gclid || (utmSource && utmSource.toLowerCase().includes('google'))) {
+      leadSource = 'GOOGLE';
+    }
+
+    const qualificationNotes = [
+      `Device Ownership: ${hasLaptop ? 'Yes (Laptop/PC/Tab)' : 'No'}`,
+      `Understands English: ${understandsEnglish ? 'Yes' : 'No'}`,
+      `WhatsApp Updates: ${whatsappUpdates ? 'Opted-In' : 'Opted-Out'}`,
+      `Slot Selected: ${date} at ${timeSlot}`,
+      gclid ? `Google Ad Click ID (gclid): ${gclid}` : null,
+      fbclid ? `Meta Ad Click ID (fbclid): ${fbclid}` : null,
+    ].filter(Boolean).join(' | ');
+
+    // 1. Insert lead
+    db.prepare(`
+      INSERT INTO leads (
+        id, student_name, student_class, student_age, parent_name,
+        mobile_number, email, city, interest_area, preferred_time,
+        notes, lead_source, utm_source, utm_medium, utm_campaign,
+        utm_content, utm_term, status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'India', 'Spoken English & Confidence', ?, ?, ?, ?, ?, ?, ?, ?, 'DEMO_SCHEDULED')
+    `).run(
+      leadId,
+      studentName.trim(),
+      studentClass || 'Grade 4',
+      9,
+      parentName || `Parent of ${studentName.trim()}`,
+      normalizedMobile,
+      email.trim(),
+      `${date} ${timeSlot}`,
+      qualificationNotes,
+      leadSource,
+      utmSource || null,
+      utmMedium || null,
+      utmCampaign || null,
+      utmContent || null,
+      utmTerm || null
+    );
+
+    // 2. Create Google Meet session
+    const startDateTime = new Date(`${date}T${startTime}:00`);
+    const topic = `upspeaq Demo: ${studentName.trim()} (${studentClass || 'Grade 4'})`;
+    const meetSession = await createGoogleMeetSession({
+      topic,
+      startTime: isNaN(startDateTime.getTime()) ? undefined : startDateTime.toISOString(),
+      durationMinutes: 45,
+    });
+
+    const demoId = 'demo_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+
+    // 3. Create demo_sessions record
+    db.prepare(`
+      INSERT INTO demo_sessions (
+        id, title, date, start_time, end_time, teacher_id, meeting_link,
+        capacity, status, notes
+      )
+      VALUES (?, ?, ?, ?, ?, NULL, ?, 2, 'SCHEDULED', ?)
+    `).run(
+      demoId,
+      topic,
+      date,
+      startTime,
+      endTime,
+      meetSession.joinUrl,
+      qualificationNotes
+    );
+
+    // 4. Create demo_attendees record
+    const attendeeId = 'da_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    db.prepare(`
+      INSERT INTO demo_attendees (id, demo_id, lead_id, student_name, parent_phone, attendance_status)
+      VALUES (?, ?, ?, ?, ?, 'REGISTERED')
+    `).run(attendeeId, demoId, leadId, studentName.trim(), normalizedMobile);
+
+    // 5. Activity log
+    db.prepare(`
+      INSERT INTO lead_activities (id, lead_id, action_type, description, actor_name, metadata_json)
+      VALUES (?, ?, 'DEMO_SCHEDULED', ?, 'Live Booking Funnel', ?)
+    `).run(
+      'act_' + Date.now().toString(36),
+      leadId,
+      `Parent booked demo slot for ${date} at ${timeSlot} (Google Meet)`,
+      JSON.stringify({ demoId, meetingLink: meetSession.joinUrl, date, timeSlot })
+    );
+
+    // 6. Dispatch live Demo Request Received Email (without meeting link)
+    const dateFormatted = new Date(date).toLocaleDateString('en-US', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    sendDemoReceivedEmail({
+      to: email.trim(),
+      studentName: studentName.trim(),
+      parentName: parentName || `Parent of ${studentName.trim()}`,
+      studentClass: studentClass || 'Grade 4',
+      dateStr: dateFormatted || date,
+      timeStr: timeSlot,
+    }).catch((err) => console.error('Demo received email trigger error:', err));
+
+    return res.json({
+      success: true,
+      leadId,
+      demoId,
+      meetingLink: meetSession.joinUrl,
+      date,
+      timeSlot,
+      dateFormatted,
+    });
+  } catch (error: any) {
+    console.error('Book slot error:', error);
+    return res.status(500).json({ error: 'Failed to complete demo slot booking.' });
+  }
+});
+
+// POST /api/leads/survey-response (Experience Customization Survey without School Board)
+leadsRouter.post('/survey-response', async (req: Request, res: Response) => {
+  try {
+    const { leadId, goals, parentName } = req.body;
+
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required.' });
+    }
+
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found.' });
+    }
+
+    const goalList = Array.isArray(goals) ? goals.join(', ') : goals || 'Not specified';
+    const updatedNotes = `${lead.notes || ''} | Student Goals: [${goalList}]`;
+
+    db.prepare(`
+      UPDATE leads 
+      SET parent_name = COALESCE(?, parent_name),
+          notes = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(parentName || lead.parent_name, updatedNotes, leadId);
+
+    db.prepare(`
+      INSERT INTO lead_activities (id, lead_id, action_type, description, actor_name, metadata_json)
+      VALUES (?, ?, 'NOTE_ADDED', ?, 'Parent Experience Survey', ?)
+    `).run(
+      'act_' + Date.now().toString(36),
+      leadId,
+      `Parent completed customization survey: Goals: ${goalList}`,
+      JSON.stringify({ goals, parentName })
+    );
+
+    return res.json({ success: true, message: 'Survey preferences saved!' });
+  } catch (error: any) {
+    console.error('Survey response error:', error);
+    return res.status(500).json({ error: 'Failed to record survey response.' });
+  }
+});
 
 // POST /api/leads/book-demo (Public & Student Booking Endpoint)
 leadsRouter.post('/book-demo', async (req: Request, res: Response) => {

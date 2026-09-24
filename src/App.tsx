@@ -9,6 +9,7 @@ import { ToastContainer, ToastMessage } from './components/ui/Toast';
 import { Header, PublicPage } from './components/public/Header';
 import { Footer } from './components/public/Footer';
 import { BookDemoModal } from './components/public/BookDemoModal';
+import { BookingFunnelModal } from './components/public/BookingFunnelModal';
 import { ParentPaymentPortal } from './components/public/ParentPaymentPortal';
 import { LegalModal } from './components/public/LegalModal';
 import { FloatingWhatsApp } from './components/public/FloatingWhatsApp';
@@ -126,6 +127,11 @@ export default function App() {
     const path = window.location.pathname;
     const viewParam = urlParams.get('view');
     const pageParam = urlParams.get('page') as PublicPage | null;
+
+    const demoParam = urlParams.get('demo') || urlParams.get('book');
+    if (demoParam === '1' || demoParam === 'true') {
+      setIsDemoModalOpen(true);
+    }
 
     if (payId) {
       setPaymentIdParam(payId);
@@ -659,21 +665,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Global Book Demo Modal */}
-      <BookDemoModal
+      {/* Global Bhanzu-Style Demo Booking Funnel Modal */}
+      <BookingFunnelModal
         isOpen={isDemoModalOpen}
         onClose={() => setIsDemoModalOpen(false)}
-        branding={branding}
-        onSuccessToast={(msg) => addToast('success', msg)}
-        onDemoBookedSuccess={(user, token) => {
-          setStoredToken(token);
-          setCurrentUser(user);
-          setCurrentView('STUDENT');
-          setStudentTab('dashboard');
-          try {
-            window.history.pushState(null, '', '?view=student');
-            window.scrollTo({ top: 0, behavior: 'instant' });
-          } catch (e) {}
+        onBookingComplete={(res) => {
+          addToast('success', `Demo slot confirmed for ${res.date} at ${res.timeSlot}! Confirmation email sent.`);
         }}
       />
 

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import confetti from 'canvas-confetti';
-import { api } from '../../lib/api';
-import { ArrowRight, CheckCircle2, Sparkles, Smile, Loader2, MessageSquare } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Sparkles, Smile, Loader2, MessageSquare, Laptop, Check } from 'lucide-react';
+import { BookingFunnelModal, BookingLeadData } from './BookingFunnelModal';
 
 interface HeroBookingFormProps {
   onOpenDemoModal?: () => void;
@@ -12,11 +11,16 @@ export const HeroBookingForm: React.FC<HeroBookingFormProps> = ({ onOpenDemoModa
   const [email, setEmail] = useState('');
   const [childName, setChildName] = useState('');
   const [grade, setGrade] = useState('Grade 4');
-  const [loading, setLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [hasLaptop, setHasLaptop] = useState<boolean>(true);
+  const [understandsEnglish, setUnderstandsEnglish] = useState<boolean>(true);
+  const [whatsappUpdates, setWhatsappUpdates] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Funnel Modal State
+  const [isFunnelOpen, setIsFunnelOpen] = useState(false);
+  const [funnelInitialData, setFunnelInitialData] = useState<BookingLeadData | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -36,41 +40,23 @@ export const HeroBookingForm: React.FC<HeroBookingFormProps> = ({ onOpenDemoModa
       return;
     }
 
-    setLoading(true);
-    try {
-      await api.createLead({
-        parentName: `Parent of ${childName.trim()}`,
-        studentName: childName.trim(),
-        studentClass: grade,
-        studentAge: '9',
-        mobileNumber: cleanMobile,
-        email: email.trim(),
-        city: 'India',
-        interestArea: 'Spoken English & Confidence',
-        notes: 'Quick Lead from Homepage Hero Form (UKG to 10th).',
-      });
+    // Pass data into the interactive multi-step funnel modal
+    setFunnelInitialData({
+      studentName: childName.trim(),
+      studentClass: grade,
+      parentName: `Parent of ${childName.trim()}`,
+      mobileNumber: cleanMobile,
+      email: email.trim(),
+      hasLaptop,
+      understandsEnglish,
+      whatsappUpdates,
+    });
 
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-
-      setIsSuccess(true);
-    } catch (err: any) {
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-      });
-      setIsSuccess(true);
-    } finally {
-      setLoading(false);
-    }
+    setIsFunnelOpen(true);
   };
 
   return (
-    <section className="py-6 sm:py-8 bg-white">
+    <section className="py-6 sm:py-8 bg-white" id="bookslot">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main 2-Column Banner Container */}
@@ -99,11 +85,11 @@ export const HeroBookingForm: React.FC<HeroBookingFormProps> = ({ onOpenDemoModa
 
             {/* Large Bold Quote */}
             <div className="relative z-10 my-10 sm:my-14">
-              <h2 className="text-3xl sm:text-4xl lg:text-[42px] font-black tracking-tight leading-[1.2] text-white font-heading">
-                “Learn English the right way”
+              <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-black tracking-tight leading-[1.2] text-white font-heading">
+                “Learning English is Fun with us”
               </h2>
               <p className="text-sm sm:text-base text-orange-100 font-medium font-body mt-4 leading-relaxed">
-                Live interactive classes designed to turn quiet students into confident, articulate speakers.
+                Live interactive classes designed to turn hesitant learners into fluent, expressive communicators.
               </p>
             </div>
 
@@ -117,51 +103,34 @@ export const HeroBookingForm: React.FC<HeroBookingFormProps> = ({ onOpenDemoModa
           {/* ================= RIGHT COLUMN: FORM AREA ================= */}
           <div className="lg:col-span-7 bg-[#FDFBF7] p-6 sm:p-10 lg:p-12 flex flex-col justify-center">
             
-            {isSuccess ? (
-              <div className="py-8 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-md">
-                  <CheckCircle2 className="w-9 h-9" />
-                </div>
-                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 font-heading">
-                  Free Class Requested!
+            <form onSubmit={handleSubmit} className="space-y-4">
+              
+              {/* Form Header matching Bhanzu */}
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 font-heading tracking-tight leading-tight">
+                  Book a <span className="text-[#EA580C]">FREE Class</span> for your child!
                 </h3>
-                <p className="text-sm text-slate-600 max-w-md mx-auto font-body">
-                  Thank you! Our academic counseling team will reach out on <strong className="text-slate-900">+91 {mobileNumber}</strong> to confirm your child's 45-minute demo schedule.
-                </p>
-                <div className="pt-4">
-                  <button
-                    onClick={() => setIsSuccess(false)}
-                    className="px-6 py-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
-                  >
-                    Submit Another Details
-                  </button>
+                <div className="text-lg sm:text-xl font-black text-[#EA580C] font-heading mt-0.5">
+                  For Grade UKG to 10th
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold mt-2">
+                  <span>😊</span>
+                  <span>Enter your details below</span>
                 </div>
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                
-                {/* Form Header */}
-                <div>
-                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 font-heading tracking-tight leading-tight">
-                    Book a <span className="text-[#EA580C]">FREE Class</span> for your child!
-                  </h3>
-                  <div className="text-lg sm:text-xl font-black text-[#EA580C] font-heading mt-0.5">
-                    For Grade UKG to 10th
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold mt-2">
-                    <span>😊</span>
-                    <span>Enter your details below</span>
-                  </div>
+
+              {/* Error Banner */}
+              {error && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700">
+                  {error}
                 </div>
+              )}
 
-                {/* Error Banner */}
-                {error && (
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700">
-                    {error}
-                  </div>
-                )}
-
-                {/* Mobile Number with Country Code */}
+              {/* Mobile Number with Country Code */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-heading">
+                  Parent's Mobile Number
+                </label>
                 <div className="flex gap-2">
                   <div className="flex items-center gap-1.5 px-3.5 py-3 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm font-bold shrink-0 shadow-2xs font-heading">
                     <span>🇮🇳</span>
@@ -177,89 +146,125 @@ export const HeroBookingForm: React.FC<HeroBookingFormProps> = ({ onOpenDemoModa
                     className="flex-1 px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-900 font-medium placeholder-slate-400 shadow-2xs font-body"
                   />
                 </div>
+              </div>
 
-                {/* Parent Email */}
-                <div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Parent's Email Address"
-                    required
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-900 font-medium placeholder-slate-400 shadow-2xs font-body"
-                  />
-                </div>
+              {/* Parent Email */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-heading">
+                  Parent's Email Address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Parent's Email Address"
+                  required
+                  className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-900 font-medium placeholder-slate-400 shadow-2xs font-body"
+                />
+              </div>
 
-                {/* Child's Name */}
-                <div>
-                  <input
-                    type="text"
-                    value={childName}
-                    onChange={(e) => setChildName(e.target.value)}
-                    placeholder="Child's Name"
-                    required
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-900 font-medium placeholder-slate-400 shadow-2xs font-body"
-                  />
-                </div>
+              {/* Child's Name */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-heading">
+                  Child's Name
+                </label>
+                <input
+                  type="text"
+                  value={childName}
+                  onChange={(e) => setChildName(e.target.value)}
+                  placeholder="Child's Name"
+                  required
+                  className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-900 font-medium placeholder-slate-400 shadow-2xs font-body"
+                />
+              </div>
 
-                {/* Grade Dropdown (UKG to 10th) */}
-                <div>
-                  <select
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-800 font-medium shadow-2xs cursor-pointer font-body"
-                  >
-                    <option value="UKG">Grade UKG</option>
-                    <option value="Grade 1">Grade 1</option>
-                    <option value="Grade 2">Grade 2</option>
-                    <option value="Grade 3">Grade 3</option>
-                    <option value="Grade 4">Grade 4</option>
-                    <option value="Grade 5">Grade 5</option>
-                    <option value="Grade 6">Grade 6</option>
-                    <option value="Grade 7">Grade 7</option>
-                    <option value="Grade 8">Grade 8</option>
-                    <option value="Grade 9">Grade 9</option>
-                    <option value="Grade 10">Grade 10</option>
-                  </select>
-                </div>
+              {/* Grade Dropdown (UKG to 10th) */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-heading">
+                  Grade
+                </label>
+                <select
+                  value={grade}
+                  onChange={(e) => setGrade(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-800 font-medium shadow-2xs cursor-pointer font-body"
+                >
+                  <option value="UKG">UKG</option>
+                  <option value="Grade 1">1</option>
+                  <option value="Grade 2">2</option>
+                  <option value="Grade 3">3</option>
+                  <option value="Grade 4">4</option>
+                  <option value="Grade 5">5</option>
+                  <option value="Grade 6">6</option>
+                  <option value="Grade 7">7</option>
+                  <option value="Grade 8">8</option>
+                  <option value="Grade 9">9</option>
+                  <option value="Grade 10">10</option>
+                </select>
+              </div>
 
-                {/* Informative WhatsApp Note */}
-                <div className="flex items-center gap-2 pt-1 text-xs font-semibold text-slate-600 bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100">
-                  <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Updates and class details will be shared on WhatsApp</span>
-                </div>
+              {/* Qualifying Question: Laptop/PC/Tab */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-heading">
+                  Do you own a Laptop/PC/Tab?
+                </label>
+                <select
+                  value={hasLaptop ? 'Yes' : 'No'}
+                  onChange={(e) => setHasLaptop(e.target.value === 'Yes')}
+                  className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-800 font-medium shadow-2xs cursor-pointer font-body"
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
 
-                {/* Clean, Polished, High-Converting Submit Button */}
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-4 px-6 rounded-full bg-gradient-to-r from-[#EA580C] via-[#F97316] to-[#EA580C] hover:from-[#C2410C] hover:to-[#EA580C] text-white text-base sm:text-lg font-black font-heading shadow-lg hover:shadow-xl hover:shadow-orange-500/25 transform hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-75"
-                  >
-                    {loading ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Reserving Free Seat...</span>
-                      </span>
-                    ) : (
-                      <>
-                        <span>Book A Free English Class</span>
-                        <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
-                          <ArrowRight className="w-4 h-4 text-white" />
-                        </div>
-                      </>
-                    )}
-                  </button>
-                </div>
+              {/* Qualifying Question: Does your child understand English? */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 font-heading">
+                  Does your child understand English?
+                </label>
+                <select
+                  value={understandsEnglish ? 'Yes' : 'No'}
+                  onChange={(e) => setUnderstandsEnglish(e.target.value === 'Yes')}
+                  className="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 outline-hidden text-sm text-slate-800 font-medium shadow-2xs cursor-pointer font-body"
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
 
-              </form>
-            )}
+              {/* Informational WhatsApp Notice (No Toggle) */}
+              <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs font-semibold text-emerald-800">
+                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Class communication and meeting updates will be shared on WhatsApp</span>
+              </div>
+
+              {/* Book Button */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-4 px-6 rounded-full bg-gradient-to-r from-[#EA580C] via-[#F97316] to-[#EA580C] hover:from-[#C2410C] hover:to-[#EA580C] text-white text-base sm:text-lg font-black font-heading shadow-lg hover:shadow-xl hover:shadow-orange-500/25 transform hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3 cursor-pointer"
+                >
+                  <span>Book A Free English Class</span>
+                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+                    <ArrowRight className="w-4 h-4 text-white" />
+                  </div>
+                </button>
+              </div>
+
+            </form>
 
           </div>
 
         </div>
 
       </div>
+
+      {/* Interactive Multi-Step Funnel Modal */}
+      <BookingFunnelModal
+        isOpen={isFunnelOpen}
+        onClose={() => setIsFunnelOpen(false)}
+        initialData={funnelInitialData}
+      />
     </section>
   );
 };

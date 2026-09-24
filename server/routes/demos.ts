@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { db } from '../db/schema.js';
 import { verifyToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { createGoogleMeetSession, getGoogleMeetSettings } from '../services/googleMeet.js';
+import { sendTeacherAssignedEmail } from '../services/emailService.js';
 
 export const demosRouter = Router();
 
@@ -337,7 +338,45 @@ demosRouter.patch('/:id', verifyToken, (req: AuthenticatedRequest, res: Response
       db.prepare(`UPDATE demo_sessions SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     }
 
-    const updated = db.prepare('SELECT * FROM demo_sessions WHERE id = ?').get(req.params.id);
+    const updated = db.prepare('SELECT * FROM demo_sessions WHERE id = ?').get(req.params.id) as any;
+
+    // If a teacher was just assigned or changed, notify attendees via email
+    if (teacherId && teacherId !== (current as any).teacher_id) {
+      const teacher = db.prepare('SELECT name, email, biography, expertise, google_meet_link FROM teachers WHERE id = ?').get(teacherId) as any;
+      const teacherName = teacher?.name || 'Teacher';
+      const effectiveMeetingLink = (teacher?.google_meet_link && teacher.google_meet_link.trim()) || updated.meeting_link || 'https://meet.google.com';
+
+      const attendees = db.prepare(`
+        SELECT da.*, l.email, l.student_name, l.parent_name, l.student_class
+        FROM demo_attendees da
+        LEFT JOIN leads l ON da.lead_id = l.id
+        WHERE da.demo_id = ?
+      `).all(req.params.id) as any[];
+
+      const dateFormatted = new Date(updated.date).toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      for (const att of attendees) {
+        if (att.email && att.email.includes('@')) {
+          sendTeacherAssignedEmail({
+            to: att.email.trim(),
+            studentName: att.student_name || 'Student',
+            parentName: att.parent_name || `Parent of ${att.student_name || 'Student'}`,
+            dateStr: dateFormatted || updated.date,
+            timeStr: updated.start_time,
+            teacherName: teacherName,
+            teacherBio: teacher?.biography,
+            teacherExpertise: teacher?.expertise,
+            meetingLink: effectiveMeetingLink,
+          }).catch((err) => console.error('Error emailing parent after teacher assignment:', err));
+        }
+      }
+    }
+
     return res.json({ demo: updated, message: 'Demo session updated.' });
   } catch (error: any) {
     console.error('Update demo error:', error);

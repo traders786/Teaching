@@ -51,6 +51,70 @@ export function clearStoredToken() {
 export const removeStoredToken = clearStoredToken;
 
 // ==========================================
+// GOOGLE & META ADS UTM ATTRIBUTION TRACKER
+// ==========================================
+const UTM_STORAGE_KEY = 'upspeaq_ad_attribution';
+
+export interface UtmParams {
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  gclid?: string;
+  fbclid?: string;
+}
+
+export function captureUtmParams(): UtmParams {
+  if (typeof window === 'undefined') return {};
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = params.get('utm_source') || undefined;
+    const utmMedium = params.get('utm_medium') || undefined;
+    const utmCampaign = params.get('utm_campaign') || undefined;
+    const utmContent = params.get('utm_content') || undefined;
+    const utmTerm = params.get('utm_term') || undefined;
+    const gclid = params.get('gclid') || undefined;
+    const fbclid = params.get('fbclid') || undefined;
+
+    if (utmSource || utmCampaign || gclid || fbclid) {
+      const attribution: UtmParams = {
+        utmSource,
+        utmMedium,
+        utmCampaign,
+        utmContent,
+        utmTerm,
+        gclid,
+        fbclid,
+      };
+      sessionStorage.setItem(UTM_STORAGE_KEY, JSON.stringify(attribution));
+      return attribution;
+    }
+
+    const saved = sessionStorage.getItem(UTM_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+export function getStoredUtmParams(): UtmParams {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = sessionStorage.getItem(UTM_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : captureUtmParams();
+  } catch (e) {
+    return {};
+  }
+}
+
+// Auto-capture on module load
+if (typeof window !== 'undefined') {
+  captureUtmParams();
+}
+
+
+// ==========================================
 // CLIENT-SIDE LOCAL STORAGE MOCK ENGINE (FOR GITHUB PAGES)
 // ==========================================
 
@@ -627,6 +691,57 @@ export const api = {
         body: JSON.stringify(payload),
       }
     ),
+
+  // Live Funnel OTP & Slot Booking APIs
+  sendOtp: (payload: { email: string; mobileNumber?: string; studentName?: string }) =>
+    request<{ success: boolean; message: string; devOtp?: string }>('/api/leads/send-otp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  verifyOtp: (payload: { email?: string; mobileNumber?: string; otp: string }) =>
+    request<{ success: boolean; verified: boolean; message: string }>('/api/leads/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  bookSlot: (payload: {
+    studentName: string;
+    studentClass?: string;
+    parentName?: string;
+    mobileNumber: string;
+    email: string;
+    hasLaptop?: boolean;
+    understandsEnglish?: boolean;
+    whatsappUpdates?: boolean;
+    date: string;
+    timeSlot: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmContent?: string;
+    utmTerm?: string;
+    gclid?: string;
+    fbclid?: string;
+  }) =>
+    request<{
+      success: boolean;
+      leadId: string;
+      demoId: string;
+      meetingLink: string;
+      date: string;
+      timeSlot: string;
+      dateFormatted?: string;
+    }>('/api/leads/book-slot', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  submitSurvey: (payload: { leadId: string; goals: string[]; parentName?: string }) =>
+    request<{ success: boolean; message: string }>('/api/leads/survey-response', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   updateLeadStatus: (id: string, status: string, notes?: string) =>
     request<{ lead: Lead; message: string }>(`/api/leads/${id}`, {

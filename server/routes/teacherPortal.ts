@@ -3,6 +3,7 @@ import multer from 'multer';
 import { db } from '../db/schema.js';
 import { verifyToken, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 import { uploadBufferToCloudinary } from '../services/cloudinary.js';
+import { sendTeacherAssignedEmail } from '../services/emailService.js';
 
 export const teacherPortalRouter = Router();
 
@@ -567,12 +568,58 @@ teacherPortalRouter.post('/demos/:id/claim', (req: AuthenticatedRequest, res: Re
       UPDATE class_sessions SET teacher_id = ? WHERE id = ? AND teacher_id IS NULL
     `).run(teacherId, req.params.id);
 
-    const teacher = db.prepare('SELECT name, google_meet_link FROM teachers WHERE id = ?').get(teacherId) as any;
+    const teacher = db.prepare('SELECT name, email, biography, expertise, google_meet_link FROM teachers WHERE id = ?').get(teacherId) as any;
     const teacherName = teacher?.name || 'Teacher';
 
     // If teacher has configured a permanent Google Meet link, attach it to the demo meeting link
+    let effectiveMeetingLink = demo.meeting_link || 'https://meet.google.com';
     if (teacher?.google_meet_link && teacher.google_meet_link.trim()) {
-      db.prepare('UPDATE demo_sessions SET meeting_link = ? WHERE id = ?').run(teacher.google_meet_link.trim(), req.params.id);
+      effectiveMeetingLink = teacher.google_meet_link.trim();
+      db.prepare('UPDATE demo_sessions SET meeting_link = ? WHERE id = ?').run(effectiveMeetingLink, req.params.id);
+    }
+
+    // Dispatch email to all registered attendees with Teacher Details + Meeting Link
+    const attendees = db.prepare(`
+      SELECT da.*, l.email, l.student_name, l.parent_name, l.student_class
+      FROM demo_attendees da
+      LEFT JOIN leads l ON da.lead_id = l.id
+      WHERE da.demo_id = ?
+    `).all(req.params.id) as any[];
+
+    const dateFormatted = new Date(demo.date).toLocaleDateString('en-US', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    for (const att of attendees) {
+      if (att.email && att.email.includes('@')) {
+        sendTeacherAssignedEmail({
+          to: att.email.trim(),
+          studentName: att.student_name || 'Student',
+          parentName: att.parent_name || `Parent of ${att.student_name || 'Student'}`,
+          dateStr: dateFormatted || demo.date,
+          timeStr: demo.start_time,
+          teacherName: teacherName,
+          teacherBio: teacher?.biography,
+          teacherExpertise: teacher?.expertise,
+          meetingLink: effectiveMeetingLink,
+        }).catch((err) => console.error('Error emailing parent after teacher claim:', err));
+
+        if (att.lead_id) {
+          db.prepare(`
+            INSERT INTO lead_activities (id, lead_id, action_type, description, actor_name, actor_id)
+            VALUES (?, ?, 'TEACHER_ASSIGNED', ?, ?, ?)
+          `).run(
+            'act_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
+            att.lead_id,
+            `Demo accepted by Teacher ${teacherName}. Live meeting link (${effectiveMeetingLink}) emailed to ${att.email}.`,
+            teacherName,
+            req.user?.id
+          );
+        }
+      }
     }
 
     // Notify the claiming teacher

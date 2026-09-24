@@ -38,33 +38,44 @@ async function main() {
   }
 
   if (toStage.length === 0 && toRemove.length === 0) {
-    console.log('Working tree is clean. No changes to commit.');
-    return;
+    console.log('Working tree is clean. Proceeding to push unpushed commits...');
+  } else {
+    const sha = await git.commit({
+      fs,
+      dir,
+      author: {
+        name: 'Upspeaq Team',
+        email: 'admin@speakindia.in',
+      },
+      message: 'Update grade selector to UKG-10th, enforce email-only OTP, dynamic worksheets PDF and teacher claim workflow',
+    });
+    console.log('Committed SHA:', sha);
   }
-
-  const sha = await git.commit({
-    fs,
-    dir,
-    author: {
-      name: 'Upspeaq Team',
-      email: 'admin@speakindia.in',
-    },
-    message: 'Update flexible batch timings and disable auto-popup on WhatsApp widget',
-  });
-
-  console.log('Committed SHA:', sha);
 
   const token = process.argv[2] || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 
-  // Try pushing
-  console.log('Attempting push to origin main...');
+  const customHttp = {
+    request(req) {
+      return http.request({
+        ...req,
+        fetchOptions: {
+          ...req.fetchOptions,
+          timeout: 600000,
+        },
+      });
+    },
+  };
+
+  // Try pushing to main
+  console.log('Attempting push to origin main (timeout: 10m)...');
   try {
     const pushResult = await git.push({
       fs,
-      http,
+      http: customHttp,
       dir,
-      remote: 'origin',
+      url: 'https://github.com/traders786/Teaching.git',
       ref: 'main',
+      remoteRef: 'main',
       onAuth: () => {
         return {
           username: token,
