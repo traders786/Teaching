@@ -45,16 +45,18 @@ const EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || 'upspeaqofficial@gmail.com'
 const GMAIL_USER = process.env.GMAIL_USER || process.env.EMAIL_USER || 'upspeaqofficial@gmail.com';
 const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS || '';
 
-// Create Nodemailer Transporter for Gmail SMTP if password is provided
-const gmailTransporter = GMAIL_PASS
-  ? nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_PASS,
-      },
-    })
-  : null;
+function getGmailTransporter() {
+  const user = process.env.GMAIL_USER || process.env.EMAIL_USER || 'upspeaqofficial@gmail.com';
+  const pass = (process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS || '').trim().replace(/\s+/g, '');
+  if (!pass) return null;
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user,
+      pass,
+    },
+  });
+}
 
 /**
  * Universal Email Sender: Automatically uses Gmail SMTP if configured, otherwise Resend API
@@ -68,17 +70,19 @@ async function sendUnifiedEmail({
   subject: string;
   html: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
-  // 1. Try Gmail SMTP if app password is provided
-  if (gmailTransporter) {
+  // 1. Try Gmail SMTP with App Password
+  const transporter = getGmailTransporter();
+  if (transporter) {
     try {
-      const info = await gmailTransporter.sendMail({
-        from: `upspeaq <${GMAIL_USER}>`,
-        to,
+      const user = process.env.GMAIL_USER || process.env.EMAIL_USER || 'upspeaqofficial@gmail.com';
+      const info = await transporter.sendMail({
+        from: `upspeaq <${user}>`,
+        to: to.trim(),
         replyTo: EMAIL_REPLY_TO,
         subject,
         html,
       });
-      console.log(`✅ [Gmail SMTP Success] Email delivered to ${to}, MessageID: ${info.messageId}`);
+      console.log(`✅ [Gmail SMTP Success] Email successfully sent to ${to}, MessageID: ${info.messageId}`);
       return { success: true, id: info.messageId };
     } catch (err: any) {
       console.error('❌ [Gmail SMTP Error]:', err.message);
