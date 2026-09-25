@@ -45,28 +45,34 @@ app.use((req, res, next) => {
 });
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get(['/api/health', '/health'], (req, res) => {
   res.json({ status: 'ok', brand: 'upspeaq', time: new Date().toISOString() });
 });
 
-// Mount Routers
-app.use('/api/auth', authRouter);
-app.use('/api/leads', leadsRouter);
-app.use('/api/demos', demosRouter);
-app.use('/api/students', studentsRouter);
-app.use('/api/batches', batchesRouter);
-app.use('/api/courses', coursesRouter);
-app.use('/api/teachers', teachersRouter);
-app.use('/api/payments', paymentsRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/api/stats', statsRouter);
-app.use('/api/teacher', teacherPortalRouter);
-app.use('/api/student', studentPortalRouter);
-app.use('/api/helpdesk', helpdeskRouter);
-app.use('/api/curriculum', curriculumRouter);
-app.use('/api/notifications', notificationsRouter);
+// Mount Routers (support both /api/* and /*)
+const mount = (path: string, router: any) => {
+  app.use(`/api${path}`, router);
+  app.use(path, router);
+};
+
+mount('/auth', authRouter);
+mount('/leads', leadsRouter);
+mount('/demos', demosRouter);
+mount('/students', studentsRouter);
+mount('/batches', batchesRouter);
+mount('/courses', coursesRouter);
+mount('/teachers', teachersRouter);
+mount('/payments', paymentsRouter);
+mount('/settings', settingsRouter);
+mount('/stats', statsRouter);
+mount('/teacher', teacherPortalRouter);
+mount('/student', studentPortalRouter);
+mount('/helpdesk', helpdeskRouter);
+mount('/curriculum', curriculumRouter);
+mount('/notifications', notificationsRouter);
 
 export default (req: any, res: any) => {
   return app(req, res);
 };
+
 
