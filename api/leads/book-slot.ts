@@ -1,4 +1,15 @@
-import { sendDemoReceivedEmail } from '../../server/services/emailService';
+import nodemailer from 'nodemailer';
+
+const GMAIL_USER = process.env.GMAIL_USER || 'upspeaqofficial@gmail.com';
+const GMAIL_PASS = (process.env.GMAIL_APP_PASSWORD || 'twhqjpehtuhqpvfs').trim().replace(/\s+/g, '');
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: GMAIL_USER,
+    pass: GMAIL_PASS,
+  },
+});
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -38,19 +49,35 @@ export default async function handler(req: any, res: any) {
       day: 'numeric',
     });
 
-    // Send demo received email with Grade PDF worksheets
-    try {
-      await sendDemoReceivedEmail({
-        to: email.trim(),
-        studentName,
-        parentName,
-        studentClass: studentClass || 'Grade 5',
-        dateStr: dateFormatted,
-        timeStr: slot,
-      });
-    } catch (e) {
-      console.error('Failed to send confirmation email on Vercel:', e);
-    }
+    const html = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        <div style="text-align: center; margin-bottom: 28px;">
+          <span style="font-size: 28px; font-weight: 800; color: #EA580C; letter-spacing: -0.5px;">upspeaq</span>
+          <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Public Speaking & Debate Classes for Young Leaders</p>
+        </div>
+        <div style="background-color: #fff7ed; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #ffedd5;">
+          <h2 style="color: #9a3412; font-size: 20px; margin: 0 0 12px 0;">🎉 Demo Request Received!</h2>
+          <p style="font-size: 15px; color: #334155; margin: 0 0 16px 0;">
+            Dear ${parentName || 'Parent'}, we have successfully received ${studentName}'s (${studentClass || 'Grade 5'}) request for a live demo class.
+          </p>
+          <div style="background: white; border-radius: 8px; padding: 16px; border: 1px solid #fed7aa;">
+            <p style="margin: 4px 0; color: #475569; font-size: 14px;"><strong>📅 Scheduled Date:</strong> ${dateFormatted}</p>
+            <p style="margin: 4px 0; color: #475569; font-size: 14px;"><strong>⏰ Time Slot:</strong> ${slot}</p>
+            <p style="margin: 4px 0; color: #475569; font-size: 14px;"><strong>👥 Batch Size:</strong> Max 1:4 Small Group</p>
+          </div>
+        </div>
+        <div style="text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          © ${new Date().getFullYear()} upspeaq. Live 1:4 Interactive Public Speaking Cohorts.
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"upspeaq" <${GMAIL_USER}>`,
+      to: email.trim(),
+      subject: `🎉 Demo Request Received for ${studentName} — ${dateFormatted} at ${slot}`,
+      html,
+    });
 
     return res.status(200).json({
       success: true,
@@ -64,7 +91,7 @@ export default async function handler(req: any, res: any) {
       date: targetDate,
       timeSlot: slot,
       dateFormatted,
-      message: 'Demo session request received! Preparation materials sent to your email.',
+      message: 'Demo session request received! Confirmation sent to your email.',
     });
   } catch (error: any) {
     console.error('Book slot error on Vercel:', error);
