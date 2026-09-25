@@ -1,23 +1,23 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
-import { seedDatabase } from '../server/db/seed.js';
+import { seedDatabase } from '../server/db/seed';
 
-import { authRouter } from '../server/routes/auth.js';
-import { leadsRouter } from '../server/routes/leads.js';
-import { demosRouter } from '../server/routes/demos.js';
-import { studentsRouter } from '../server/routes/students.js';
-import { batchesRouter } from '../server/routes/batches.js';
-import { coursesRouter } from '../server/routes/courses.js';
-import { teachersRouter } from '../server/routes/teachers.js';
-import { paymentsRouter } from '../server/routes/payments.js';
-import { settingsRouter } from '../server/routes/settings.js';
-import { statsRouter } from '../server/routes/stats.js';
-import { teacherPortalRouter } from '../server/routes/teacherPortal.js';
-import { studentPortalRouter } from '../server/routes/studentPortal.js';
-import { helpdeskRouter } from '../server/routes/helpdesk.js';
-import { curriculumRouter } from '../server/routes/curriculum.js';
-import { notificationsRouter } from '../server/routes/notifications.js';
+import { authRouter } from '../server/routes/auth';
+import { leadsRouter } from '../server/routes/leads';
+import { demosRouter } from '../server/routes/demos';
+import { studentsRouter } from '../server/routes/students';
+import { batchesRouter } from '../server/routes/batches';
+import { coursesRouter } from '../server/routes/courses';
+import { teachersRouter } from '../server/routes/teachers';
+import { paymentsRouter } from '../server/routes/payments';
+import { settingsRouter } from '../server/routes/settings';
+import { statsRouter } from '../server/routes/stats';
+import { teacherPortalRouter } from '../server/routes/teacherPortal';
+import { studentPortalRouter } from '../server/routes/studentPortal';
+import { helpdeskRouter } from '../server/routes/helpdesk';
+import { curriculumRouter } from '../server/routes/curriculum';
+import { notificationsRouter } from '../server/routes/notifications';
 
 dotenv.config();
 
@@ -66,4 +66,7 @@ app.use('/api/helpdesk', helpdeskRouter);
 app.use('/api/curriculum', curriculumRouter);
 app.use('/api/notifications', notificationsRouter);
 
-export default app;
+export default (req: any, res: any) => {
+  return app(req, res);
+};
+
